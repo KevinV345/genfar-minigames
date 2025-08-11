@@ -1,35 +1,34 @@
 import mysql from "mysql2/promise"
 
-// Database configuration
+// Configuración Railway
 const dbConfig = {
-  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "minijuegos",
+  host: "nozomi.proxy.rlwy.net",
+  port: 48666,
+  user: "root",
+  password: "bjByHffRRNUhDEQuVeXkjDwSdmKLNYuf",
+  database: "railway",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 }
 
-// Create connection pool
+// Pool de conexiones
 export const pool = mysql.createPool(dbConfig)
 
-// Test connection
+// Probar conexión
 pool
   .getConnection()
   .then((connection) => {
-    console.log("✅ Database connected successfully")
+    console.log("✅ Conectado a Railway MySQL")
     connection.release()
   })
   .catch((error) => {
-    console.error("❌ Database connection failed:", error.message)
-    console.log("Please check your database configuration and ensure MySQL is running")
+    console.error("❌ Falló la conexión:", error.message)
   })
 
-// Graceful shutdown
+// Cierre elegante
 process.on("SIGINT", async () => {
-  console.log("Closing database connections...")
+  console.log("Cerrando conexiones...")
   await pool.end()
   process.exit(0)
 })
