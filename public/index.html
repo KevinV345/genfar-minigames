@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración - Minijuegos</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Agregando iconos de Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
 </head>
 
 <body>
@@ -32,175 +34,210 @@
         </div>
     </div>
 
-    <div id="appContainer" class="container" style="display: none;">
-        <header class="header">
-            <h1>Panel de Administración - Minijuegos</h1>
-            <div class="user-info">
-                <span id="userInfo"></span>
-                <button id="logoutBtn" class="btn btn-secondary">Cerrar Sesión</button>
+    <!-- Reestructurando el layout con sidebar y main content -->
+    <div id="appContainer" class="app-layout" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i data-feather="zap"></i>
+                    <!-- Cambiando título de "Coursue" a "Admin Panel" -->
+                    <span>Admin Panel</span>
+                </div>
             </div>
-        </header>
 
-        <nav class="nav-tabs">
-            <button class="nav-tab active" data-tab="paises">Países</button>
-            <button class="nav-tab" data-tab="preguntas">Genfy Pregunta</button>
-            <button class="nav-tab" data-tab="escenarios">Genfy Encuentra</button>
-            <!-- Eliminada la pestaña de colliders ya que está integrada en escenarios -->
-            <button class="nav-tab" data-tab="sprites">Mision Genfy</button>
-            <button class="nav-tab admin-only" data-tab="usuarios">Usuarios</button>
-            <button class="nav-tab admin-only" data-tab="logs">Logs</button>
-        </nav>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">GESTIÓN</div>
+                    <!-- Cambiando nombres de navegación a nombres concisos y funcionales -->
+                    <button class="nav-item active" data-tab="paises">
+                        <i data-feather="globe"></i>
+                        <span>Países</span>
+                    </button>
+                    <button class="nav-item" data-tab="preguntas">
+                        <i data-feather="help-circle"></i>
+                        <span>Genfy Pregunta</span>
+                    </button>
+                    <button class="nav-item" data-tab="escenarios">
+                        <i data-feather="image"></i>
+                        <span>Genfy Encuentra</span>
+                    </button>
+                    <button class="nav-item" data-tab="sprites">
+                        <i data-feather="package"></i>
+                        <span>Mision Genfy</span>
+                    </button>
+                    <button class="nav-item admin-only" data-tab="usuarios">
+                        <i data-feather="users"></i>
+                        <span>Usuarios</span>
+                    </button>
+                </div>
 
+                <!-- Eliminando sección FRIENDS que no tiene funcionalidad -->
 
-        <div id="paisesSection" class="section active">
-            <div class="section-header">
-                <h2>Gestión de Países</h2>
-                <!-- Removida clase admin-only para permitir acceso a todos los usuarios -->
-                <button id="addPaisBtn" class="btn btn-primary">Agregar País</button>
-            </div>
-            <div class="table-container">
-                <table id="paisesTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <!-- Removida clase admin-only de la columna acciones -->
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">SISTEMA</div>
+                    <button class="nav-item admin-only" data-tab="logs">
+                        <i data-feather="activity"></i>
+                        <span>Logs</span>
+                    </button>
+                    <button class="nav-item" id="logoutBtn">
+                        <i data-feather="log-out"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </div>
+            </nav>
+        </aside>
 
-        <div id="preguntasSection" class="section">
-            <div class="section-header">
-                <h2>Gestión de Preguntas</h2>
-                <!-- Removida clase admin-only para permitir acceso a todos los usuarios -->
-                <button id="addPreguntaBtn" class="btn btn-primary">Agregar Pregunta</button>
-            </div>
-            <div class="filters">
-                <select id="paisFilter">
-                    <option value="">Todos los países</option>
-                </select>
-            </div>
-            <div class="table-container">
-                <table id="preguntasTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>País</th>
-                            <th>Pregunta</th>
-                            <th>Respuesta Correcta</th>
-                            <!-- Removida clase admin-only de la columna acciones -->
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <!-- Eliminando barra de búsqueda, notificaciones y perfil de usuario -->
+                <div class="header-spacer"></div>
+            </header>
 
-        <div id="escenariosSection" class="section">
-            <div class="section-header">
-                <h2>Gestión de Escenarios</h2>
-                <!-- Removida clase admin-only para permitir acceso a todos los usuarios -->
-                <button id="addEscenarioBtn" class="btn btn-primary">Agregar Escenario</button>
-            </div>
-            <!-- Agregando filtro por país para escenarios -->
-            <div class="filters">
-                <select id="paisFilterEscenarios">
-                    <option value="">Todos los países</option>
-                </select>
-            </div>
-            <div class="table-container">
-                <table id="escenariosTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>País</th>
-                            <th>Imagen Fondo</th>
-                            <th>Imagen Objetivo</th>
-                            <!-- Removida clase admin-only de la columna acciones -->
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+            <!-- Content Sections -->
+            <div class="content-wrapper">
+                <!-- Manteniendo todas las secciones originales pero con nuevo diseño -->
+                <div id="paisesSection" class="section active">
+                    <div class="section-header">
+                        <h2>Gestión de Países</h2>
+                        <button id="addPaisBtn" class="btn btn-primary">Agregar País</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="paisesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
 
-        <!-- Eliminada completamente la sección de colliders -->
+                <div id="preguntasSection" class="section">
+                    <div class="section-header">
+                        <h2>Gestión de Preguntas</h2>
+                        <button id="addPreguntaBtn" class="btn btn-primary">Agregar Pregunta</button>
+                    </div>
+                    <div class="filters">
+                        <select id="paisFilter">
+                            <option value="">Todos los países</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table id="preguntasTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>País</th>
+                                    <th>Pregunta</th>
+                                    <th>Respuesta Correcta</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
 
-        <div id="spritesSection" class="section">
-            <div class="section-header">
-                <h2>Gestión de Sprites</h2>
-                <!-- Removida clase admin-only para permitir acceso a todos los usuarios -->
-                <button id="addSpriteBtn" class="btn btn-primary">Agregar Sprite</button>
-            </div>
-            <!-- Agregando filtro por país para sprites -->
-            <div class="filters">
-                <select id="paisFilterSprites">
-                    <option value="">Todos los países</option>
-                </select>
-            </div>
-            <div class="table-container">
-                <table id="spritesTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>País</th>
-                            <th>Tipo</th>
-                            <th>Imagen URL</th>
-                            <!-- Removida clase admin-only de la columna acciones -->
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+                <div id="escenariosSection" class="section">
+                    <div class="section-header">
+                        <h2>Gestión de Escenarios</h2>
+                        <button id="addEscenarioBtn" class="btn btn-primary">Agregar Escenario</button>
+                    </div>
+                    <div class="filters">
+                        <select id="paisFilterEscenarios">
+                            <option value="">Todos los países</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table id="escenariosTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>País</th>
+                                    <th>Imagen Fondo</th>
+                                    <th>Imagen Objetivo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
 
-        <!-- Mantenida clase admin-only solo para usuarios y logs -->
-        <div id="usuariosSection" class="section admin-only">
-            <div class="section-header">
-                <h2>Gestión de Usuarios</h2>
-                <button id="addUsuarioBtn" class="btn btn-primary">Agregar Usuario</button>
-            </div>
-            <div class="table-container">
-                <table id="usuariosTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <th>Correo</th>
-                            <th>Admin</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+                <div id="spritesSection" class="section">
+                    <div class="section-header">
+                        <h2>Gestión de Sprites</h2>
+                        <button id="addSpriteBtn" class="btn btn-primary">Agregar Sprite</button>
+                    </div>
+                    <div class="filters">
+                        <select id="paisFilterSprites">
+                            <option value="">Todos los países</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table id="spritesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>País</th>
+                                    <!-- Eliminando columna Nombre de sprites -->
+                                    <th>Tipo</th>
+                                    <th>Imagen URL</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
 
-        <div id="logsSection" class="section admin-only">
-            <div class="section-header">
-                <h2>Logs de Cambios</h2>
+                <div id="usuariosSection" class="section admin-only">
+                    <div class="section-header">
+                        <h2>Gestión de Usuarios</h2>
+                        <button id="addUsuarioBtn" class="btn btn-primary">Agregar Usuario</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="usuariosTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Correo</th>
+                                    <th>Admin</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="logsSection" class="section admin-only">
+                    <div class="section-header">
+                        <h2>Logs de Cambios</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="logsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Acción</th>
+                                    <th>Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="table-container">
-                <table id="logsTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha</th>
-                            <th>Acción</th>
-                            <th>Detalle</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+        </main>
     </div>
 
     <div id="modal" class="modal">
@@ -211,6 +248,12 @@
     </div>
 
     <script src="app.js"></script>
+    <!-- Inicializando los iconos de Feather -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            feather.replace();
+        });
+    </script>
 </body>
 
 </html>

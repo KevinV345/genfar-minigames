@@ -70,11 +70,27 @@ const auth =
     }
   }
 
-const logChange = async (accion, detalle) => {
+const logChange = async (accion, detalle, usuario = null) => {
   try {
-    await pool.query("INSERT INTO logs_cambios (accion, detalle) VALUES (?,?)", [accion, detalle])
+    let mensajeLog = ""
+    if (usuario) {
+      mensajeLog = `el usuario ${usuario.nombre}, ${accion} - ${detalle}`
+    } else {
+      mensajeLog = `${accion} - ${detalle}`
+    }
+
+    await pool.query("INSERT INTO logs_cambios (accion, detalle) VALUES (?,?)", [accion, mensajeLog])
   } catch (error) {
     console.error("Error logging change:", error)
+  }
+}
+
+const getUserInfo = async (userId) => {
+  try {
+    const [rows] = await pool.query("SELECT nombre FROM usuarios WHERE id = ?", [userId])
+    return rows.length > 0 ? rows[0] : { nombre: "Usuario desconocido" }
+  } catch (error) {
+    return { nombre: "Usuario desconocido" }
   }
 }
 
@@ -151,6 +167,8 @@ app.post("/api/login", async (req, res) => {
     const token = jwt.sign({ id: user.id, es_admin: !!user.es_admin }, SECRET)
     console.log("Login successful for user:", correo)
 
+    await logChange("inició sesión", `Acceso al sistema - Panel de administración de minijuegos`, user)
+
     res.json({
       token,
       user: {
@@ -183,7 +201,8 @@ app.post("/api/usuarios", auth(true), async (req, res) => {
       "INSERT INTO usuarios (nombre, correo, contrasena_hash, es_admin) VALUES (?,?,?,?)",
       [nombre, correo, hash, es_admin ? 1 : 0],
     )
-    await logChange("Insert", `Nuevo usuario: ${nombre} (${correo})`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo usuario", `Usuario: ${nombre} (${correo}) - Sistema de administración`, usuario)
     res.json({ mensaje: "Usuario creado", id: result.insertId })
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
@@ -210,7 +229,12 @@ app.put("/api/usuarios/:id", auth(true), async (req, res) => {
     params.push(req.params.id)
 
     await pool.query(query, params)
-    await logChange("Update", `Usuario actualizado ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "actualizó un usuario",
+      `Usuario: ${nombre} (${correo}) - Sistema de administración - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Usuario actualizado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -219,8 +243,16 @@ app.put("/api/usuarios/:id", auth(true), async (req, res) => {
 
 app.delete("/api/usuarios/:id", auth(true), async (req, res) => {
   try {
+    const [userToDelete] = await pool.query("SELECT nombre FROM usuarios WHERE id=?", [req.params.id])
+    const nombreEliminado = userToDelete.length > 0 ? userToDelete[0].nombre : "Usuario desconocido"
+
     await pool.query("DELETE FROM usuarios WHERE id=?", [req.params.id])
-    await logChange("Delete", `Usuario eliminado ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó un usuario",
+      `Usuario eliminado: ${nombreEliminado} - Sistema de administración - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Usuario eliminado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -250,7 +282,8 @@ app.post("/api/paises", auth(true), async (req, res) => {
   try {
     const { nombre } = req.body
     const [result] = await pool.query("INSERT INTO paises (nombre) VALUES (?)", [nombre])
-    await logChange("Insert", `Nuevo país: ${nombre}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo país", `País: ${nombre} - Configuración general`, usuario)
     res.json({ mensaje: "País agregado", id: result.insertId })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -261,7 +294,8 @@ app.put("/api/paises/:id", auth(true), async (req, res) => {
   try {
     const { nombre } = req.body
     await pool.query("UPDATE paises SET nombre=? WHERE id=?", [nombre, req.params.id])
-    await logChange("Update", `País actualizado ID: ${req.params.id} - ${nombre}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("actualizó un país", `País: ${nombre} - Configuración general - ID: ${req.params.id}`, usuario)
     res.json({ mensaje: "País actualizado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -270,8 +304,16 @@ app.put("/api/paises/:id", auth(true), async (req, res) => {
 
 app.delete("/api/paises/:id", auth(true), async (req, res) => {
   try {
+    const [paisToDelete] = await pool.query("SELECT nombre FROM paises WHERE id=?", [req.params.id])
+    const nombrePais = paisToDelete.length > 0 ? paisToDelete[0].nombre : "País desconocido"
+
     await pool.query("DELETE FROM paises WHERE id=?", [req.params.id])
-    await logChange("Delete", `País eliminado ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó un país",
+      `País eliminado: ${nombrePais} - Configuración general - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "País eliminado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -316,7 +358,10 @@ app.post("/api/preguntas", auth(true), async (req, res) => {
       "INSERT INTO genfy_pregunta (pais_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3) VALUES (?,?,?,?,?,?)",
       [pais_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3],
     )
-    await logChange("Insert", `Nueva pregunta para país ID: ${pais_id}`)
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó una nueva pregunta", `Pregunta para ${nombrePais} - Juego Genfy Pregunta`, usuario)
     res.json({ mensaje: "Pregunta creada", id: result.insertId })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -330,7 +375,14 @@ app.put("/api/preguntas/:id", auth(true), async (req, res) => {
       "UPDATE genfy_pregunta SET pais_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=? WHERE id=?",
       [pais_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, req.params.id],
     )
-    await logChange("Update", `Pregunta actualizada ID: ${req.params.id}`)
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "actualizó una pregunta",
+      `Pregunta de ${nombrePais} - Juego Genfy Pregunta - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Pregunta actualizada" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -339,8 +391,28 @@ app.put("/api/preguntas/:id", auth(true), async (req, res) => {
 
 app.delete("/api/preguntas/:id", auth(true), async (req, res) => {
   try {
+    const [preguntaInfo] = await pool.query(
+      `
+      SELECT p.pregunta, pa.nombre as pais_nombre 
+      FROM genfy_pregunta p 
+      LEFT JOIN paises pa ON p.pais_id = pa.id 
+      WHERE p.id=?
+    `,
+      [req.params.id],
+    )
+
+    const infoPregunta =
+      preguntaInfo.length > 0
+        ? `${preguntaInfo[0].pregunta.substring(0, 50)}... de ${preguntaInfo[0].pais_nombre}`
+        : "Pregunta desconocida"
+
     await pool.query("DELETE FROM genfy_pregunta WHERE id=?", [req.params.id])
-    await logChange("Delete", `Pregunta eliminada ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó una pregunta",
+      `Pregunta eliminada: ${infoPregunta} - Juego Genfy Pregunta - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Pregunta eliminada" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -368,7 +440,10 @@ app.post("/api/escenarios", auth(true), async (req, res) => {
       "INSERT INTO genfy_encuentra_escenarios (pais_id, imagen_fondo, imagen_objetivo) VALUES (?,?,?)",
       [pais_id, imagen_fondo, imagen_objetivo],
     )
-    await logChange("Insert", `Nuevo escenario para país ID: ${pais_id}`)
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo escenario", `Escenario de ${nombrePais} - Juego Genfy Encuentra`, usuario)
     res.json({ mensaje: "Escenario creado", id: result.insertId })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -384,7 +459,14 @@ app.put("/api/escenarios/:id", auth(true), async (req, res) => {
       imagen_objetivo,
       req.params.id,
     ])
-    await logChange("Update", `Escenario actualizado ID: ${req.params.id}`)
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "actualizó un escenario",
+      `Escenario de ${nombrePais} - Juego Genfy Encuentra - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Escenario actualizado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -393,8 +475,25 @@ app.put("/api/escenarios/:id", auth(true), async (req, res) => {
 
 app.delete("/api/escenarios/:id", auth(true), async (req, res) => {
   try {
+    const [escenarioInfo] = await pool.query(
+      `
+      SELECT pa.nombre as pais_nombre 
+      FROM genfy_encuentra_escenarios e 
+      LEFT JOIN paises pa ON e.pais_id = pa.id 
+      WHERE e.id=?
+    `,
+      [req.params.id],
+    )
+
+    const nombrePais = escenarioInfo.length > 0 ? escenarioInfo[0].pais_nombre : "País desconocido"
+
     await pool.query("DELETE FROM genfy_encuentra_escenarios WHERE id=?", [req.params.id])
-    await logChange("Delete", `Escenario eliminado ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó un escenario",
+      `Escenario de ${nombrePais} eliminado - Juego Genfy Encuentra - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Escenario eliminado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -434,9 +533,23 @@ app.post("/api/colliders/batch", auth(true), async (req, res) => {
       }
 
       await connection.commit()
+
+      const [escenarioInfo] = await connection.query(
+        `
+        SELECT pa.nombre as pais_nombre 
+        FROM genfy_encuentra_escenarios e 
+        LEFT JOIN paises pa ON e.pais_id = pa.id 
+        WHERE e.id=?
+      `,
+        [escenario_id],
+      )
+
+      const nombrePais = escenarioInfo.length > 0 ? escenarioInfo[0].pais_nombre : "País desconocido"
+      const usuario = await getUserInfo(req.user.id)
       await logChange(
-        "Insert",
-        `Nuevo collider polígono para escenario ID: ${escenario_id} con ${points.length} puntos`,
+        "configuró colliders",
+        `Polígono de ${points.length} puntos para escenario de ${nombrePais} - Juego Genfy Encuentra - ID: ${escenario_id}`,
+        usuario,
       )
 
       res.json({ mensaje: "Collider polígono creado exitosamente", puntos: points.length })
@@ -507,43 +620,93 @@ app.get("/api/sprites", auth(), async (req, res) => {
   }
 })
 
-app.post("/api/sprites", auth(), async (req, res) => {
+app.post("/api/sprites", auth(), upload.single("imagen"), async (req, res) => {
   try {
-    const { pais_id, tipo, imagen_url } = req.body
-    console.log("Creating sprite with data:", { pais_id, tipo, imagen_url })
+    const { pais_id, tipo } = req.body
+    console.log("Creating sprite with data:", { pais_id, tipo, file: req.file ? req.file.filename : "no file" })
+
+    if (!pais_id || !tipo) {
+      return res.status(400).json({ error: "País y tipo son requeridos" })
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "Imagen es requerida" })
+    }
+
+    const imagen_url = `/img/${req.file.filename}`
+
     const [result] = await pool.query("INSERT INTO mision_genfy_sprites (pais_id, tipo, imagen_url) VALUES (?,?,?)", [
       pais_id,
       tipo,
       imagen_url,
     ])
-    await logChange("Insert", `Nuevo sprite tipo ${tipo} para país ID: ${pais_id}`)
-    res.json({ mensaje: "Sprite creado", id: result.insertId })
+
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo sprite", `Sprite tipo '${tipo}' para ${nombrePais} - Juego Misión Genfy`, usuario)
+
+    res.json({ success: true, mensaje: "Sprite creado", id: result.insertId })
   } catch (error) {
     console.error("Error creating sprite:", error)
     res.status(500).json({ error: "Error del servidor", details: error.message })
   }
 })
 
-app.put("/api/sprites/:id", auth(true), async (req, res) => {
+app.put("/api/sprites/:id", auth(true), upload.single("imagen"), async (req, res) => {
   try {
-    const { pais_id, tipo, imagen_url } = req.body
+    const { pais_id, tipo } = req.body
+    let imagen_url = req.body.imagen_url // Para mantener la imagen existente si no se sube nueva
+
+    if (req.file) {
+      imagen_url = `/img/${req.file.filename}`
+    }
+
     await pool.query("UPDATE mision_genfy_sprites SET pais_id=?, tipo=?, imagen_url=? WHERE id=?", [
       pais_id,
       tipo,
       imagen_url,
       req.params.id,
     ])
-    await logChange("Update", `Sprite actualizado ID: ${req.params.id}`)
-    res.json({ mensaje: "Sprite actualizado" })
+
+    const [paisInfo] = await pool.query("SELECT nombre FROM paises WHERE id=?", [pais_id])
+    const nombrePais = paisInfo.length > 0 ? paisInfo[0].nombre : "País desconocido"
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "actualizó un sprite",
+      `Sprite tipo '${tipo}' de ${nombrePais} - Juego Misión Genfy - ID: ${req.params.id}`,
+      usuario,
+    )
+
+    res.json({ success: true, mensaje: "Sprite actualizado" })
   } catch (error) {
+    console.error("Error updating sprite:", error)
     res.status(500).json({ error: "Error del servidor" })
   }
 })
 
 app.delete("/api/sprites/:id", auth(true), async (req, res) => {
   try {
+    const [spriteInfo] = await pool.query(
+      `
+      SELECT s.tipo, pa.nombre as pais_nombre 
+      FROM mision_genfy_sprites s 
+      LEFT JOIN paises pa ON s.pais_id = pa.id 
+      WHERE s.id=?
+    `,
+      [req.params.id],
+    )
+
+    const infoSprite =
+      spriteInfo.length > 0 ? `tipo '${spriteInfo[0].tipo}' de ${spriteInfo[0].pais_nombre}` : "Sprite desconocido"
+
     await pool.query("DELETE FROM mision_genfy_sprites WHERE id=?", [req.params.id])
-    await logChange("Delete", `Sprite eliminado ID: ${req.params.id}`)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó un sprite",
+      `Sprite ${infoSprite} eliminado - Juego Misión Genfy - ID: ${req.params.id}`,
+      usuario,
+    )
     res.json({ mensaje: "Sprite eliminado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })

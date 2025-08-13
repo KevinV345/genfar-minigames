@@ -10,6 +10,9 @@ const colliderEditor = {
   containerElement: null,
 }
 
+// Feather icon library
+const feather = window.feather
+
 // API Base URL
 const API_BASE = "/api"
 
@@ -38,9 +41,8 @@ function setupEventListeners() {
   // Logout button
   document.getElementById("logoutBtn").addEventListener("click", handleLogout)
 
-  // Navigation tabs
-  document.querySelectorAll(".nav-tab").forEach((tab) => {
-    tab.addEventListener("click", (e) => switchTab(e.target.dataset.tab))
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", (e) => switchTab(e.target.closest(".nav-item").dataset.tab))
   })
 
   // Add buttons
@@ -180,16 +182,20 @@ function switchTab(tabName) {
     section.classList.remove("active")
   })
 
-  // Remove active class from all tabs
-  document.querySelectorAll(".nav-tab").forEach((tab) => {
-    tab.classList.remove("active")
+  // Remove active class from all nav items
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.remove("active")
   })
 
   // Show selected section
   document.getElementById(`${tabName}Section`).classList.add("active")
 
-  // Add active class to selected tab
+  // Add active class to selected nav item
   document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
+
+  setTimeout(() => {
+    feather.replace()
+  }, 100)
 
   // Load data for the selected tab if needed
   switch (tabName) {
@@ -276,7 +282,7 @@ async function loadSprites() {
   try {
     const sprites = await apiRequest("/sprites")
     currentData.sprites = sprites
-    renderSpritesTable(sprites)
+    displaySprites(sprites)
   } catch (error) {
     console.error("Error loading sprites:", error)
   }
@@ -361,7 +367,7 @@ function filterSprites() {
     filteredSprites = filteredSprites.filter((s) => s.pais_id == paisId)
   }
 
-  renderSpritesTable(filteredSprites)
+  displaySprites(filteredSprites)
 }
 
 // Render functions
@@ -423,22 +429,24 @@ function renderEscenariosTable(scenarios) {
   })
 }
 
-function renderSpritesTable(sprites) {
+function displaySprites(sprites) {
   const tbody = document.querySelector("#spritesTable tbody")
   tbody.innerHTML = ""
 
   sprites.forEach((sprite) => {
     const row = document.createElement("tr")
     row.innerHTML = `
-            <td>${sprite.id}</td>
-            <td>${sprite.pais_nombre || "N/A"}</td>
-            <td>${sprite.tipo}</td>
-            <td>${sprite.imagen_url.substring(0, 30)}${sprite.imagen_url.length > 30 ? "..." : ""}</td>
-            <td>
-                <button class="btn btn-warning btn-small" onclick="editSprite(${sprite.id})">Editar</button>
-                <button class="btn btn-danger btn-small" onclick="deleteSprite(${sprite.id})">Eliminar</button>
-            </td>
-        `
+      <td>${sprite.id}</td>
+      <td>${sprite.pais_nombre}</td>
+      <td>${sprite.tipo}</td>
+      <td>
+        ${sprite.imagen_url ? `<img src="${sprite.imagen_url}" alt="Sprite" style="max-width: 50px; max-height: 50px;">` : "Sin imagen"}
+      </td>
+      <td>
+        <button onclick="showSpriteForm(${JSON.stringify(sprite).replace(/"/g, "&quot;")})" class="btn btn-edit">Editar</button>
+        <button onclick="deleteSprite(${sprite.id})" class="btn btn-delete">Eliminar</button>
+      </td>
+    `
     tbody.appendChild(row)
   })
 }
@@ -469,10 +477,10 @@ function renderLogsTable(logs) {
 
   logs.forEach((log) => {
     const row = document.createElement("tr")
-    const fecha = new Date(log.fecha).toLocaleString("es-ES")
+    const fechaUTC = new Date(log.fecha).toLocaleString("es-ES", { timeZone: "UTC" }) + " UTC"
     row.innerHTML = `
             <td>${log.id}</td>
-            <td>${fecha}</td>
+            <td>${fechaUTC}</td>
             <td>${log.accion}</td>
             <td>${log.detalle || "N/A"}</td>
         `
@@ -890,83 +898,94 @@ async function showEscenarioForm(escenario = null) {
   }
 }
 
-async function showSpriteForm(sprite = null) {
-  const isEdit = !!sprite
-  const title = isEdit ? "Editar Sprite" : "Agregar Sprite"
+function showSpriteForm(sprite = null) {
+  const isEdit = sprite !== null
+  const modalBody = document.getElementById("modalBody")
 
-  const paises = await apiRequest("/paises")
-  const paisesOptions = paises
-    .map(
-      (pais) =>
-        `<option value="${pais.id}" ${isEdit && sprite.pais_id === pais.id ? "selected" : ""}>${pais.nombre}</option>`,
-    )
-    .join("")
+  modalBody.innerHTML = `
+    <h3>${isEdit ? "Editar" : "Agregar"} Sprite</h3>
+    <form id="spriteForm" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="spritePaisId">País:</label>
+        <select id="spritePaisId" required>
+          <option value="">Seleccionar país</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="spriteTipo">Tipo:</label>
+        <select id="spriteTipo" required>
+          <option value="">Seleccionar tipo</option>
+          <option value="medicamento">Medicamento</option>
+          <option value="bacteria">Bacteria</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="spriteImagen">Subir imagen:</label>
+        <input type="file" id="spriteImagen" accept="image/*" ${!isEdit ? "required" : ""}>
+      </div>
+      <button type="submit">${isEdit ? "Actualizar" : "Crear"} Sprite</button>
+    </form>
+  `
 
-  const content = `
-        <form id="spriteForm">
-            <div class="form-group">
-                <label for="spritePais">País:</label>
-                <select id="spritePais" required>
-                    ${paisesOptions}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="spriteTipo">Tipo:</label>
-                <select id="spriteTipo" required>
-                    <option value="">Seleccionar tipo</option>
-                    <option value="medicamento" ${isEdit && sprite.tipo === "medicamento" ? "selected" : ""}>Medicamento</option>
-                    <option value="bacteria" ${isEdit && sprite.tipo === "bacteria" ? "selected" : ""}>Bacteria</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="imagenUrl">Imagen:</label>
-                <input type="file" id="imagenUrl" accept="image/*" ${!isEdit ? "required" : ""}>
-                ${isEdit ? `<p class="current-image">Imagen actual: ${sprite.imagen_url}</p>` : ""}
-            </div>
-            <div class="form-buttons">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-            </div>
-        </form>
-    `
+  loadPaisesForSelect("spritePaisId")
 
-  showModal(title, content)
+  if (isEdit) {
+    document.getElementById("spritePaisId").value = sprite.pais_id
+    document.getElementById("spriteTipo").value = sprite.tipo
+  }
 
-  document.getElementById("spriteForm").addEventListener("submit", async (e) => {
+  document.getElementById("spriteForm").addEventListener("submit", (e) => {
     e.preventDefault()
 
-    try {
-      const data = {
-        pais_id: document.getElementById("spritePais").value,
-        tipo: document.getElementById("spriteTipo").value,
-      }
+    const paisId = document.getElementById("spritePaisId").value
+    const tipo = document.getElementById("spriteTipo").value
+    const fileInput = document.getElementById("spriteImagen")
 
-      // Subir imagen si se seleccionó
-      const imagenFile = document.getElementById("imagenUrl").files[0]
-      if (imagenFile) {
-        data.imagen_url = await uploadImage(imagenFile)
-      } else if (isEdit) {
-        data.imagen_url = sprite.imagen_url
-      }
-
-      if (isEdit) {
-        await apiRequest(`/sprites/${sprite.id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-        })
-      } else {
-        await apiRequest("/sprites", {
-          method: "POST",
-          body: JSON.stringify(data),
-        })
-      }
-
-      closeModal()
-      loadSprites()
-    } catch (error) {
-      alert("Error: " + error.message)
+    if (!paisId || !tipo) {
+      showNotification("Por favor completa todos los campos requeridos", "error")
+      return
     }
+
+    if (!isEdit && !fileInput.files[0]) {
+      showNotification("Por favor selecciona una imagen", "error")
+      return
+    }
+
+    const formData = new FormData()
+    formData.append("pais_id", paisId)
+    formData.append("tipo", tipo)
+
+    if (fileInput.files[0]) {
+      formData.append("imagen", fileInput.files[0])
+    }
+
+    const url = isEdit ? `/api/sprites/${sprite.id}` : "/api/sprites"
+    const method = isEdit ? "PUT" : "POST"
+
+    fetch(url, {
+      method: method,
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: formData,
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          closeModal()
+          loadSprites()
+          showNotification(`Sprite ${isEdit ? "actualizado" : "creado"} exitosamente`, "success")
+        } else {
+          showNotification(data.error || "Error al procesar sprite", "error")
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error)
+        showNotification("Error al procesar sprite", "error")
+      })
   })
+
+  document.getElementById("modal").style.display = "block"
 }
 
 function showUsuarioForm(usuario = null) {
@@ -1134,4 +1153,27 @@ async function deleteUsuario(id) {
       alert("Error: " + error.message)
     }
   }
+}
+
+function loadPaisesForSelect(selectId) {
+  const select = document.getElementById(selectId)
+  select.innerHTML = '<option value="">Seleccionar país</option>'
+
+  currentData.paises.forEach((pais) => {
+    const option = document.createElement("option")
+    option.value = pais.id
+    option.textContent = pais.nombre
+    select.appendChild(option)
+  })
+}
+
+function showNotification(message, type) {
+  const notification = document.createElement("div")
+  notification.className = `notification ${type}`
+  notification.textContent = message
+  document.body.appendChild(notification)
+
+  setTimeout(() => {
+    document.body.removeChild(notification)
+  }, 3000)
 }

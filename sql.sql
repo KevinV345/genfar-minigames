@@ -98,7 +98,6 @@ DROP TABLE IF EXISTS `mision_genfy_sprites`;
 CREATE TABLE IF NOT EXISTS `mision_genfy_sprites` (
   `id` int NOT NULL AUTO_INCREMENT,
   `pais_id` int NOT NULL,
-  `nombre` varchar(100) NOT NULL,
   `tipo` enum('medicamento','bacteria') NOT NULL,
   `imagen_url` text NOT NULL,
   PRIMARY KEY (`id`),
