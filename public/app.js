@@ -19,6 +19,59 @@ const API_BASE = "/api"
 // Initialize app
 document.addEventListener("DOMContentLoaded", () => {
   initializeApp()
+
+  // Mobile menu toggle functionality
+  const mobileMenuToggle = document.getElementById("mobileMenuToggle")
+  const sidebar = document.getElementById("sidebar")
+  let sidebarOverlay = null
+
+  if (mobileMenuToggle) {
+    mobileMenuToggle.addEventListener("click", () => {
+      toggleSidebar()
+    })
+  }
+
+  function toggleSidebar() {
+    const isOpen = sidebar.classList.contains("open")
+
+    if (isOpen) {
+      closeSidebar()
+    } else {
+      openSidebar()
+    }
+  }
+
+  function openSidebar() {
+    sidebar.classList.add("open")
+
+    // Create overlay
+    if (!sidebarOverlay) {
+      sidebarOverlay = document.createElement("div")
+      sidebarOverlay.className = "sidebar-overlay"
+      document.body.appendChild(sidebarOverlay)
+
+      sidebarOverlay.addEventListener("click", closeSidebar)
+    }
+
+    sidebarOverlay.classList.add("active")
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove("open")
+
+    if (sidebarOverlay) {
+      sidebarOverlay.classList.remove("active")
+    }
+  }
+
+  // Close sidebar when clicking on nav items (mobile)
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", () => {
+      if (window.innerWidth <= 1024) {
+        closeSidebar()
+      }
+    })
+  })
 })
 
 function initializeApp() {

@@ -37,7 +37,7 @@
     <!-- Reestructurando el layout con sidebar y main content -->
     <div id="appContainer" class="app-layout" style="display: none;">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
                     <i data-feather="zap"></i>
@@ -56,15 +56,15 @@
                     </button>
                     <button class="nav-item" data-tab="preguntas">
                         <i data-feather="help-circle"></i>
-                        <span>Genfy Pregunta</span>
+                        <span>Preguntas</span>
                     </button>
                     <button class="nav-item" data-tab="escenarios">
                         <i data-feather="image"></i>
-                        <span>Genfy Encuentra</span>
+                        <span>Escenarios</span>
                     </button>
                     <button class="nav-item" data-tab="sprites">
                         <i data-feather="package"></i>
-                        <span>Mision Genfy</span>
+                        <span>Sprites</span>
                     </button>
                     <button class="nav-item admin-only" data-tab="usuarios">
                         <i data-feather="users"></i>
@@ -92,6 +92,10 @@
         <main class="main-content">
             <!-- Header -->
             <header class="main-header">
+                <!-- Agregando botón hamburguesa para móviles -->
+                <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                    <i data-feather="menu"></i>
+                </button>
                 <!-- Eliminando barra de búsqueda, notificaciones y perfil de usuario -->
                 <div class="header-spacer"></div>
             </header>
@@ -227,7 +231,8 @@
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Fecha</th>
+                                    <!-- Cambiando "Fecha" a "Fecha UTC" para clarificar zona horaria -->
+                                    <th>Fecha UTC</th>
                                     <th>Acción</th>
                                     <th>Detalle</th>
                                 </tr>

@@ -165,7 +165,7 @@ body {
 /* Header - Simplificado sin elementos eliminados */
 .main-header {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 32px;
     background: white;
@@ -173,6 +173,35 @@ body {
     border-radius: 16px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
     min-height: 72px;
+}
+
+/* Agregando botón hamburguesa al header */
+.mobile-menu-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.mobile-menu-toggle:hover {
+    background-color: #f8fafc;
+    border-color: #667eea;
+}
+
+.mobile-menu-toggle i {
+    font-size: 20px;
+    color: #64748b;
+}
+
+.mobile-menu-toggle:hover i {
+    color: #667eea;
 }
 
 /* Agregando espaciador para mantener la estructura del header */
@@ -209,6 +238,7 @@ body {
 
 .section-header h2 {
     color: #1e293b;
+    margin-bottom: 16px;
     font-size: 24px;
     font-weight: 700;
 }
@@ -504,11 +534,34 @@ body.admin .section.admin-only.active {
     display: block !important;
 }
 
+/* Agregando overlay para cerrar sidebar en móvil */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
+
+    /* Mostrando botón toggle en móviles */
+    .mobile-menu-toggle {
+        display: flex !important;
+    }
+
     .sidebar {
         transform: translateX(-100%);
         transition: transform 0.3s ease;
+        z-index: 100;
     }
 
     .main-content {
@@ -530,9 +583,9 @@ body.admin .section.admin-only.active {
     }
 
     .main-header {
-        flex-direction: column;
+        flex-direction: row;
         gap: 16px;
-        align-items: stretch;
+        align-items: center;
     }
 
     .section {
