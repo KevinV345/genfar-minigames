@@ -320,7 +320,7 @@ app.delete("/api/paises/:id", auth(true), async (req, res) => {
   }
 })
 
-app.get("/api/preguntas", auth(), async (req, res) => {
+app.get("/api/preguntas",  async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT p.*, pa.nombre as pais_nombre 
