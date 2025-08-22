@@ -324,8 +324,41 @@ async function loadPreguntas() {
 async function loadEscenarios() {
   try {
     const escenarios = await apiRequest("/escenarios")
-    currentData.escenarios = escenarios
-    renderEscenariosTable(escenarios)
+    const tbody = document.querySelector("#escenariosTable tbody")
+
+    // Get objects count for each scenario
+    const escenariosWithObjects = await Promise.all(
+      escenarios.map(async (escenario) => {
+        try {
+          const objetos = await apiRequest(`/escenarios/${escenario.id}/objetos`)
+          return { ...escenario, objetosCount: objetos.length }
+        } catch (error) {
+          return { ...escenario, objetosCount: 0 }
+        }
+      }),
+    )
+  currentData.escenarios=escenarios
+    tbody.innerHTML = escenariosWithObjects
+      .map(
+        (escenario) => `
+        <tr>
+            <td>${escenario.id}</td>
+            <td>${escenario.pais_nombre || "Sin país"}</td>
+            <td><img src="${escenario.imagen_fondo}" alt="Fondo" style="width: 50px; height: 50px; object-fit: cover;"></td>
+            <td>
+                <span class="badge">${escenario.objetosCount} objeto(s)</span>
+                <button class="btn btn-small btn-primary" onclick="manageObjects(${escenario.id}, '${escenario.pais_nombre || "Sin país"}')">
+                    Gestionar Objetos
+                </button>
+            </td>
+            <td>
+                <button class="btn btn-small btn-warning" onclick="editEscenario(${escenario.id})">Editar</button>
+                <button class="btn btn-small btn-danger admin-only" onclick="deleteEscenario(${escenario.id})">Eliminar</button>
+            </td>
+        </tr>
+    `,
+      )
+      .join("")
   } catch (error) {
     console.error("Error loading escenarios:", error)
   }
@@ -741,11 +774,6 @@ async function showEscenarioForm(escenario = null) {
                 <input type="file" id="imagenFondo" accept="image/*" ${!isEdit ? "required" : ""}>
                 ${isEdit ? `<p class="current-image">Imagen actual: ${escenario.imagen_fondo}</p>` : ""}
             </div>
-            <div class="form-group">
-                <label for="imagenObjetivo">Imagen Objetivo:</label>
-                <input type="file" id="imagenObjetivo" accept="image/*" ${!isEdit ? "required" : ""}>
-                ${isEdit ? `<p class="current-image">Imagen actual: ${escenario.imagen_objetivo}</p>` : ""}
-            </div>
             <div class="form-buttons">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
                 <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
@@ -755,25 +783,10 @@ async function showEscenarioForm(escenario = null) {
         ${
           !isEdit
             ? `
-        <div id="colliderSection" style="display: none; margin-top: 20px; padding: 20px; border: 2px solid #007bff; border-radius: 8px; background-color: #f8f9fa;">
-            <h3>Crear Collider para el Escenario</h3>
-            <p style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
-                <strong>Instrucciones:</strong> Haz clic en la imagen para marcar los puntos del área clickeable. Necesitas al menos 3 puntos para formar un polígono.
-            </p>
-            
-            <div id="colliderImageContainer" style="position: relative; display: inline-block; border: 2px solid #ddd; margin: 10px 0;">
-                <img id="colliderImage" style="max-width: 100%; height: auto; display: block;">
-                <svg id="colliderPolygon" style="position: absolute; top: 0; left: 0; pointer-events: none;">
-                    <polygon id="polygon" fill="rgba(255, 0, 0, 0.3)" stroke="red" stroke-width="2" points=""/>
-                </svg>
-            </div>
-            
-            <div class="collider-controls" style="margin: 15px 0;">
-                <p>Puntos marcados: <span id="pointCount">0</span></p>
-                <button type="button" id="undoPoint" class="btn btn-warning" disabled>Deshacer último punto</button>
-                <button type="button" id="clearPoints" class="btn btn-danger" disabled>Limpiar todo</button>
-                <button type="button" id="submitCollider" class="btn btn-success" disabled>Crear Collider</button>
-            </div>
+        <div id="nextStepInfo" style="display: none; margin-top: 20px; padding: 20px; border: 2px solid #28a745; border-radius: 8px; background-color: #d4edda;">
+            <h4>¡Escenario creado exitosamente!</h4>
+            <p>Ahora puedes agregar objetos a buscar en este escenario.</p>
+            <button type="button" id="manageObjectsBtn" class="btn btn-success">Gestionar Objetos</button>
         </div>
         `
             : ""
@@ -782,9 +795,7 @@ async function showEscenarioForm(escenario = null) {
 
   showModal(title, content)
 
-  // Variables for manejar colliders en escenarios nuevos
-  let colliderPoints = []
-  let currentEscenarioId = null
+  let createdEscenarioId = null
 
   document.getElementById("escenarioForm").addEventListener("submit", async (e) => {
     e.preventDefault()
@@ -794,19 +805,12 @@ async function showEscenarioForm(escenario = null) {
         pais_id: document.getElementById("escenarioPais").value,
       }
 
-      // Subir imagen si se seleccionó
+      // Upload background image if selected
       const imagenFondoFile = document.getElementById("imagenFondo").files[0]
       if (imagenFondoFile) {
         data.imagen_fondo = await uploadImage(imagenFondoFile)
       } else if (isEdit) {
         data.imagen_fondo = escenario.imagen_fondo
-      }
-
-      const imagenObjetivoFile = document.getElementById("imagenObjetivo").files[0]
-      if (imagenObjetivoFile) {
-        data.imagen_objetivo = await uploadImage(imagenObjetivoFile)
-      } else if (isEdit) {
-        data.imagen_objetivo = escenario.imagen_objetivo
       }
 
       if (isEdit) {
@@ -821,133 +825,329 @@ async function showEscenarioForm(escenario = null) {
           method: "POST",
           body: JSON.stringify(data),
         })
+        loadEscenarios()
+        
+        createdEscenarioId = response.id
 
-        currentEscenarioId = response.id
-
-        document.getElementById("colliderSection").style.display = "block"
-        const colliderImage = document.getElementById("colliderImage")
-        colliderImage.src = data.imagen_fondo
-
-        setupColliderEvents()
-
-        // Ocultar el formulario de escenario
+        // Show next step info
         document.getElementById("escenarioForm").style.display = "none"
+        document.getElementById("nextStepInfo").style.display = "block"
+
+        document.getElementById("manageObjectsBtn").addEventListener("click", () => {
+          closeModal()
+          const paisName = document.getElementById("escenarioPais").selectedOptions[0].text
+          manageObjects(createdEscenarioId, paisName)
+        })
       }
     } catch (error) {
       alert("Error: " + error.message)
     }
   })
+}
 
-  function setupColliderEvents() {
-    const colliderImage = document.getElementById("colliderImage")
-    const undoButton = document.getElementById("undoPoint")
-    const clearButton = document.getElementById("clearPoints")
-    const submitButton = document.getElementById("submitCollider")
+async function manageObjects(escenarioId, paisName) {
+  try {
+    const objetos = await apiRequest(`/escenarios/${escenarioId}/objetos`)
 
-    colliderImage.addEventListener("click", (e) => {
-      const rect = colliderImage.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * 100
-      const y = ((e.clientY - rect.top) / rect.height) * 100
+    const content = `
+      <div class="objects-manager">
+        <div class="section-header">
+          <h3>Objetos para Escenario de ${paisName}</h3>
+          <button id="addObjectBtn" class="btn btn-primary">Agregar Objeto</button>
+        </div>
+        
+        <div id="objectsList">
+          ${
+            objetos.length === 0
+              ? '<p style="text-align: center; color: #666; padding: 20px;">No hay objetos agregados aún.</p>'
+              : objetos
+                  .map(
+                    (objeto) => `
+              <div class="object-item" style="border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 12px 0; background: #f9f9f9;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 16px;">
+                    <img src="${objeto.imagen_objetivo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">
+                    <div>
+                      <p style="margin: 4px 0; color: #666; font-size: 14px;">Orden: ${objeto.orden}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <button class="btn btn-small btn-success" onclick="editObjectColliders(${objeto.id}, ${escenarioId})">
+                      Colliders
+                    </button>
+                    <button class="btn btn-small btn-warning" onclick="editObject(${objeto.id}, ${escenarioId})">
+                      Editar
+                    </button>
+                    <button class="btn btn-small btn-danger" onclick="deleteObject(${objeto.id}, ${escenarioId})">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `,
+                  )
+                  .join("")
+          }
+        </div>
+      </div>
+    `
 
-      colliderPoints.push({ x, y, indice: colliderPoints.length })
+    showModal(`Gestión de Objetos - ${paisName}`, content)
 
-      // Crear punto visual
-      const point = document.createElement("div")
-      point.className = "collider-point"
-      point.style.cssText = `
-        position: absolute;
-        left: ${x}%;
-        top: ${y}%;
-        width: 8px;
-        height: 8px;
-        background-color: red;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 10;
-      `
-      document.getElementById("colliderImageContainer").appendChild(point)
-
-      updatePolygonDisplay()
-      updateControls()
+    document.getElementById("addObjectBtn").addEventListener("click", () => {
+      showObjectForm(escenarioId)
     })
+  } catch (error) {
+    alert("Error al cargar objetos: " + error.message)
+  }
+}
 
-    undoButton.addEventListener("click", () => {
-      if (colliderPoints.length > 0) {
-        colliderPoints.pop()
-        const points = document.querySelectorAll(".collider-point")
-        if (points.length > 0) {
-          points[points.length - 1].remove()
-        }
-        updatePolygonDisplay()
-        updateControls()
+async function showObjectForm(escenarioId, objeto = null) {
+  const isEdit = !!objeto
+  const title = isEdit ? "Editar Objeto" : "Agregar Objeto"
+
+  const content = `
+    <form id="objectForm">
+      <div class="form-group">
+        <label for="objectImage">Imagen del Objeto:</label>
+        <input type="file" id="objectImage" accept="image/*" ${!isEdit ? "required" : ""}>
+        ${isEdit ? `<p class="current-image">Imagen actual: ${objeto.imagen_objetivo}</p>` : ""}
+      </div>
+      <div class="form-group">
+        <label for="objectOrder">Orden de Búsqueda:</label>
+        <input type="number" id="objectOrder" min="1" value="${isEdit ? objeto.orden : 1}" required>
+        <small style="color: #666;">El orden en que el jugador debe encontrar este objeto</small>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="manageObjects(${escenarioId}, 'Escenario')">Volver</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"} Objeto</button>
+      </div>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("objectForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+
+    try {
+      const data = {
+        orden: Number.parseInt(document.getElementById("objectOrder").value),
       }
-    })
 
-    clearButton.addEventListener("click", () => {
-      colliderPoints = []
-      document.querySelectorAll(".collider-point").forEach((point) => point.remove())
-      updatePolygonDisplay()
-      updateControls()
-    })
+      const imageFile = document.getElementById("objectImage").files[0]
+      if (imageFile) {
+        data.imagen_objetivo = await uploadImage(imageFile)
+      } else if (isEdit) {
+        data.imagen_objetivo = objeto.imagen_objetivo
+      }
 
-    submitButton.addEventListener("click", async () => {
-      try {
-        const pointsData = colliderPoints.map((point) => ({
-          punto_x: point.x,
-          punto_y: point.y,
-          indice: point.indice,
-        }))
-
-        await apiRequest("/colliders/batch", {
-          method: "POST",
-          body: JSON.stringify({
-            escenario_id: currentEscenarioId,
-            points: pointsData,
-          }),
+      if (isEdit) {
+        await apiRequest(`/objetos/${objeto.id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
         })
-
-        alert("Collider creado exitosamente!")
-        closeModal()
-        loadEscenarios()
-      } catch (error) {
-        alert("Error al crear collider: " + error.message)
+      } else {
+        await apiRequest(`/escenarios/${escenarioId}/objetos`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
       }
-    })
+
+      // Refresh the objects list
+      manageObjects(escenarioId, "Escenario")
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
+async function editObjectColliders(objetoId, escenarioId) {
+  try {
+    // Get scenario info for background image
+    const escenarios = await apiRequest("/escenarios")
+    const escenario = escenarios.find((e) => e.id === escenarioId)
+
+    if (!escenario) {
+      alert("Error: No se pudo encontrar el escenario")
+      return
+    }
+
+    // Get existing colliders
+    const colliders = await apiRequest(`/objetos/${objetoId}/colliders`)
+
+    const content = `
+      <div class="collider-editor">
+        <h3>Editor de Colliders</h3>
+        <div class="editor-instructions">
+          <p><strong>Instrucciones:</strong></p>
+          <p>• Haz clic en la imagen para marcar los puntos del área clickeable</p>
+          <p>• Necesitas al menos 3 puntos para formar un polígono</p>
+          <p>• Los puntos se conectarán automáticamente para formar el área de detección</p>
+        </div>
+        
+        <div class="image-container">
+          <img id="colliderImage" src="${escenario.imagen_fondo}" class="scenario-image">
+          <svg class="collider-polygon">
+            <polygon id="colliderPolygon" points=""></polygon>
+          </svg>
+        </div>
+        
+        <div class="editor-controls">
+          <span class="point-counter">Puntos: <span id="pointCount">0</span></span>
+          <button type="button" id="undoPoint" class="btn btn-warning" disabled>Deshacer</button>
+          <button type="button" id="clearPoints" class="btn btn-danger" disabled>Limpiar</button>
+          <button type="button" id="saveColliders" class="btn btn-success" disabled>Guardar</button>
+          <button type="button" class="btn btn-secondary" onclick="manageObjects(${escenarioId}, 'Escenario')">Volver</button>
+        </div>
+      </div>
+    `
+
+    showModal(`Colliders`, content)
+
+    // Initialize collider editor
+    initializeColliderEditor(objetoId, colliders, escenarioId)
+  } catch (error) {
+    alert("Error al cargar editor de colliders: " + error.message)
+  }
+}
+
+function initializeColliderEditor(objetoId, existingColliders, escenarioId) {
+  let points = []
+  const image = document.getElementById("colliderImage")
+  const polygon = document.getElementById("colliderPolygon")
+  const pointCountSpan = document.getElementById("pointCount")
+  const undoBtn = document.getElementById("undoPoint")
+  const clearBtn = document.getElementById("clearPoints")
+  const saveBtn = document.getElementById("saveColliders")
+
+  if (existingColliders && existingColliders.length > 0) {
+    // Sort colliders by index to maintain proper order
+    const sortedColliders = existingColliders.sort((a, b) => a.indice - b.indice)
+    points = sortedColliders.map((c) => ({
+      x: c.punto_x,
+      y: c.punto_y,
+      indice: c.indice,
+    }))
+
+    // Wait for image to load before updating display
+    if (image.complete) {
+      updateDisplay()
+    } else {
+      image.addEventListener("load", () => {
+        updateDisplay()
+      })
+    }
   }
 
-  function updatePolygonDisplay() {
-    const polygon = document.getElementById("polygon")
-    const colliderImage = document.getElementById("colliderImage")
-    const svg = document.getElementById("colliderPolygon")
+  // Image click handler
+  image.addEventListener("click", (e) => {
+    const rect = image.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
 
-    if (colliderPoints.length >= 2) {
-      const rect = colliderImage.getBoundingClientRect()
-      svg.style.width = rect.width + "px"
-      svg.style.height = rect.height + "px"
+    points.push({ x, y, indice: points.length })
+    updateDisplay()
+  })
 
-      const points = colliderPoints
-        .map((point) => {
-          const x = (point.x / 100) * rect.width
-          const y = (point.y / 100) * rect.height
-          return `${x},${y}`
-        })
-        .join(" ")
+  // Button handlers
+  undoBtn.addEventListener("click", () => {
+    if (points.length > 0) {
+      points.pop()
+      updateDisplay()
+    }
+  })
 
-      polygon.setAttribute("points", points)
+  clearBtn.addEventListener("click", () => {
+    points = []
+    updateDisplay()
+  })
+
+  saveBtn.addEventListener("click", async () => {
+    try {
+      const pointsData = points.map((point, index) => ({
+        punto_x: point.x,
+        punto_y: point.y,
+        indice: index, // Use array index to ensure proper ordering
+      }))
+
+      await apiRequest(`/objetos/${objetoId}/colliders/batch`, {
+        method: "POST",
+        body: JSON.stringify({ points: pointsData }),
+      })
+
+      alert("Colliders guardados exitosamente!")
+      manageObjects(escenarioId, "Escenario")
+    } catch (error) {
+      alert("Error al guardar colliders: " + error.message)
+    }
+  })
+
+  function updateDisplay() {
+    // Update point count
+    pointCountSpan.textContent = points.length
+
+    // Update button states
+    const hasPoints = points.length > 0
+    const canSave = points.length >= 3
+
+    undoBtn.disabled = !hasPoints
+    clearBtn.disabled = !hasPoints
+    saveBtn.disabled = !canSave
+
+    // Update polygon
+    if (points.length >= 2) {
+      const rect = image.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        const pointsStr = points
+          .map((point) => {
+            const x = (point.x / 100) * rect.width
+            const y = (point.y / 100) * rect.height
+            return `${x},${y}`
+          })
+          .join(" ")
+
+        polygon.setAttribute("points", pointsStr)
+      }
     } else {
       polygon.setAttribute("points", "")
     }
 
-    document.getElementById("pointCount").textContent = colliderPoints.length
+    // Update visual points
+    const container = image.parentElement
+    container.querySelectorAll(".collider-point").forEach((p) => p.remove())
+
+    points.forEach((point) => {
+      const pointEl = document.createElement("div")
+      pointEl.className = "collider-point"
+      pointEl.style.left = `${point.x}%`
+      pointEl.style.top = `${point.y}%`
+      container.appendChild(pointEl)
+    })
   }
+}
 
-  function updateControls() {
-    const hasPoints = colliderPoints.length > 0
-    const canSubmit = colliderPoints.length >= 3
+async function editObject(objetoId, escenarioId) {
+  try {
+    const objetos = await apiRequest(`/escenarios/${escenarioId}/objetos`)
+    const objeto = objetos.find((o) => o.id === objetoId)
 
-    document.getElementById("undoPoint").disabled = !hasPoints
-    document.getElementById("clearPoints").disabled = !hasPoints
-    document.getElementById("submitCollider").disabled = !canSubmit
+    if (objeto) {
+      showObjectForm(escenarioId, objeto)
+    }
+  } catch (error) {
+    alert("Error al cargar objeto: " + error.message)
+  }
+}
+
+async function deleteObject(objetoId, escenarioId) {
+  if (confirm("¿Estás seguro de que quieres eliminar este objeto? También se eliminarán sus colliders.")) {
+    try {
+      await apiRequest(`/objetos/${objetoId}`, { method: "DELETE" })
+      manageObjects(escenarioId, "Escenario")
+    } catch (error) {
+      alert("Error al eliminar objeto: " + error.message)
+    }
   }
 }
 
@@ -976,7 +1176,10 @@ function showSpriteForm(sprite = null) {
         <label for="spriteImagen">Subir imagen:</label>
         <input type="file" id="spriteImagen" accept="image/*" ${!isEdit ? "required" : ""}>
       </div>
-      <button type="submit">${isEdit ? "Actualizar" : "Crear"} Sprite</button>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"} Sprite</button>
+      </div>
     </form>
   `
 
@@ -1043,71 +1246,69 @@ function showSpriteForm(sprite = null) {
 
 function showUsuarioForm(usuario = null) {
   const isEdit = usuario !== null
-  const title = isEdit ? "Editar Usuario" : "Agregar Usuario"
+  const modalBody = document.getElementById("modalBody")
 
-  const content = `
-        <form id="usuarioForm">
-            <div class="form-group">
-                <label for="usuarioNombre">Nombre:</label>
-                <input type="text" id="usuarioNombre" value="${isEdit ? usuario.nombre : ""}" required>
-            </div>
-            <div class="form-group">
-                <label for="usuarioCorreo">Correo:</label>
-                <input type="email" id="usuarioCorreo" value="${isEdit ? usuario.correo : ""}" required>
-            </div>
-            <div class="form-group">
-                <label for="usuarioContrasena">Contraseña:</label>
-                <input type="password" id="usuarioContrasena" ${!isEdit ? "required" : ""}>
-                ${isEdit ? "<small>Dejar en blanco para mantener la contraseña actual</small>" : ""}
-            </div>
-            <div class="form-group">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="usuarioAdmin" ${isEdit && usuario.es_admin ? "checked" : ""}>
-                    <label for="usuarioAdmin">Es Administrador</label>
-                </div>
-            </div>
-            <div class="form-buttons">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-            </div>
-        </form>
-    `
+  modalBody.innerHTML = `
+    <h3>${isEdit ? "Editar" : "Agregar"} Usuario</h3>
+    <form id="usuarioForm">
+      <div class="form-group">
+        <label for="usuarioNombre">Nombre:</label>
+        <input type="text" id="usuarioNombre" required value="${isEdit ? usuario.nombre : ""}">
+      </div>
+      <div class="form-group">
+        <label for="usuarioCorreo">Correo:</label>
+        <input type="email" id="usuarioCorreo" required value="${isEdit ? usuario.correo : ""}">
+      </div>
+      <div class="form-group">
+        <label for="usuarioAdmin">Admin:</label>
+        <input type="checkbox" id="usuarioAdmin" ${isEdit && usuario.es_admin ? "checked" : ""}>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"} Usuario</button>
+      </div>
+    </form>
+  `
 
-  showModal(title, content)
-
-  document.getElementById("usuarioForm").addEventListener("submit", async (e) => {
+  document.getElementById("usuarioForm").addEventListener("submit", (e) => {
     e.preventDefault()
 
-    const data = {
-      nombre: document.getElementById("usuarioNombre").value,
-      correo: document.getElementById("usuarioCorreo").value,
-      es_admin: document.getElementById("usuarioAdmin").checked,
-    }
+    const nombre = document.getElementById("usuarioNombre").value
+    const correo = document.getElementById("usuarioCorreo").value
+    const esAdmin = document.getElementById("usuarioAdmin").checked
 
-    const contrasena = document.getElementById("usuarioContrasena").value
-    if (contrasena) {
-      data.contrasena = contrasena
-    }
+    const formData = new FormData()
+    formData.append("nombre", nombre)
+    formData.append("correo", correo)
+    formData.append("es_admin", esAdmin)
 
-    try {
-      if (isEdit) {
-        await apiRequest(`/usuarios/${usuario.id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-        })
-      } else {
-        await apiRequest("/usuarios", {
-          method: "POST",
-          body: JSON.stringify(data),
-        })
-      }
+    const url = isEdit ? `/api/usuarios/${usuario.id}` : "/api/usuarios"
+    const method = isEdit ? "PUT" : "POST"
 
-      closeModal()
-      loadUsuarios()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
+    fetch(url, {
+      method: method,
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: formData,
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          closeModal()
+          loadUsuarios()
+          showNotification(`Usuario ${isEdit ? "actualizado" : "creado"} exitosamente`, "success")
+        } else {
+          showNotification(data.error || "Error al procesar usuario", "error")
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error)
+        showNotification("Error al procesar usuario", "error")
+      })
   })
+
+  document.getElementById("modal").style.display = "block"
 }
 
 // Edit functions
@@ -1126,6 +1327,9 @@ async function editPregunta(id) {
 }
 
 async function editEscenario(id) {
+  console.log(currentData);
+  
+
   const escenario = currentData.escenarios.find((e) => e.id === id)
   if (escenario) {
     showEscenarioForm(escenario)
@@ -1174,7 +1378,7 @@ async function deletePregunta(id) {
 async function deleteEscenario(id) {
   if (
     confirm(
-      "¿Estás seguro de que quieres eliminar este escenario? Esto también eliminará todos los sprites relacionados.",
+      "¿Estás seguro de que quieres eliminar este escenario? Esto también eliminará todos los objetos y colliders relacionados.",
     )
   ) {
     try {
@@ -1224,9 +1428,22 @@ function showNotification(message, type) {
   const notification = document.createElement("div")
   notification.className = `notification ${type}`
   notification.textContent = message
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    z-index: 10000;
+    ${type === "success" ? "background-color: #10b981;" : "background-color: #ef4444;"}
+  `
   document.body.appendChild(notification)
 
   setTimeout(() => {
-    document.body.removeChild(notification)
+    if (document.body.contains(notification)) {
+      document.body.removeChild(notification)
+    }
   }, 3000)
 }

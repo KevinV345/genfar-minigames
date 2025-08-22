@@ -1,6 +1,5 @@
 import mysql from "mysql2/promise"
 
-// Configuración Railway
 const dbConfig = {
   host: "nozomi.proxy.rlwy.net",
   port: 48666,
@@ -11,6 +10,21 @@ const dbConfig = {
   connectionLimit: 10,
   queueLimit: 0,
 }
+
+
+// const dbConfig = {
+//   host: "localhost",
+//   port: 3306 ,
+//   user: "root",
+//   password: "",
+//   database: "minijuegos",
+//   waitForConnections: true,
+//   connectionLimit: 10,
+//   queueLimit: 0,
+// }
+
+
+
 
 // Pool de conexiones
 export const pool = mysql.createPool(dbConfig)
