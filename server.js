@@ -406,7 +406,7 @@ app.delete("/api/preguntas/:id", auth(true), async (req, res) => {
   }
 })
 
-app.get("/api/escenarios", auth(), async (req, res) => {
+app.get("/api/escenarios", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT e.*, p.nombre as pais_nombre FROM genfy_encuentra_escenarios e LEFT JOIN paises p ON e.pais_id = p.id ORDER BY p.nombre`,
@@ -416,6 +416,52 @@ app.get("/api/escenarios", auth(), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
+
+app.get("/api/escenariosUnity/:paisId", async (req, res) => {
+  const { paisId } = req.params;
+
+  try {
+    // Traer escenarios con su país
+    const [escenarios] = await pool.query(
+      `SELECT e.*, p.nombre AS pais_nombre
+       FROM genfy_encuentra_escenarios e
+       LEFT JOIN paises p ON e.pais_id = p.id
+       WHERE e.pais_id = ?`,
+      [paisId]
+    );
+
+    for (let escenario of escenarios) {
+      // Traer objetos de este escenario
+      const [objetos] = await pool.query(
+        `SELECT o.id, o.imagen_objetivo, o.orden
+         FROM genfy_encuentra_objetos o
+         WHERE o.escenario_id = ?
+         ORDER BY o.orden ASC`,
+        [escenario.id]
+      );
+
+      for (let objeto of objetos) {
+        // Traer colliders de cada objeto
+        const [colliders] = await pool.query(
+          `SELECT c.id, c.punto_x, c.punto_y, c.indice
+           FROM genfy_encuentra_colliders c
+           WHERE c.objeto_id = ?
+           ORDER BY c.indice ASC`,
+          [objeto.id]
+        );
+        objeto.colliders = colliders;
+      }
+
+      escenario.objetos = objetos;
+    }
+
+    res.json(escenarios);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
 
 app.post("/api/escenarios", auth(true), async (req, res) => {
   try {
@@ -502,7 +548,7 @@ app.delete("/api/escenarios/:id", auth(true), async (req, res) => {
   }
 })
 
-app.get("/api/escenarios/:escenarioId/objetos", auth(), async (req, res) => {
+app.get("/api/escenarios/:escenarioId/objetos", async (req, res) => {
   try {
     const [rows] = await pool.query(`SELECT * FROM genfy_encuentra_objetos WHERE escenario_id = ? ORDER BY orden, id`, [
       req.params.escenarioId,
@@ -605,7 +651,7 @@ app.delete("/api/objetos/:id", auth(true), async (req, res) => {
 })
 
 
-app.get("/api/colliders/escenario/:escenarioId", auth(), async (req, res) => {
+app.get("/api/colliders/escenario/:escenarioId", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM genfy_encuentra_colliders WHERE escenario_id = ? ORDER BY indice", [
       req.params.escenarioId,
@@ -616,7 +662,7 @@ app.get("/api/colliders/escenario/:escenarioId", auth(), async (req, res) => {
   }
 })
 
-app.get("/api/objetos/:objetoId/colliders", auth(), async (req, res) => {
+app.get("/api/objetos/:objetoId/colliders", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM genfy_encuentra_colliders WHERE objeto_id = ? ORDER BY indice", [
       req.params.objetoId,
@@ -724,13 +770,13 @@ app.delete("/api/colliders/:id", auth(true), async (req, res) => {
   }
 })
 
-app.get("/api/sprites", auth(), async (req, res) => {
-  try {
+app.get("/api/sprites", async (req, res) => {
+  try{
     const [rows] = await pool.query(
       `SELECT s.*, p.nombre as pais_nombre FROM mision_genfy_sprites s LEFT JOIN paises p ON s.pais_id = p.id ORDER BY p.nombre, s.tipo`,
     )
     res.json(rows)
-  } catch (error) {
+  }catch (error){
     res.status(500).json({ error: "Error del servidor" })
   }
 })
