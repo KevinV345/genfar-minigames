@@ -417,6 +417,65 @@ app.get("/api/escenarios", async (req, res) => {
   }
 })
 
+app.get("/api/spritesUnity/:paisId", async (req, res) => {
+  try {
+    const { paisId } = req.params;
+
+    // Consulta la base de datos para obtener todos los sprites para el país
+    const [sprites] = await pool.query(
+      `SELECT s.id, s.tipo, s.imagen_url
+        FROM mision_genfy_sprites s
+        WHERE s.pais_id = ?
+        ORDER BY s.tipo ASC, s.id ASC`, // Aseguramos un orden consistente
+      [paisId]
+    );
+
+    if (sprites.length === 0) {
+      return res.status(404).json({ error: "No se encontraron sprites para el país especificado." });
+    }
+
+    // Dividir los sprites en dos arrays según el tipo
+    const spritesMedicamento = sprites.filter(s => s.tipo === 'medicamento');
+    const spritesBacteria = sprites.filter(s => s.tipo === 'bacteria');
+
+    // Función para asegurar que un array tenga exactamente 6 elementos y el formato de datos correcto
+    const formatSpritesArray = (arr) => {
+      const formatted = [];
+      if (arr.length >= 6) {
+        // Si hay 6 o más, tomamos los 6 primeros y removemos el campo 'tipo'
+        for (let i = 0; i < 6; i++) {
+          const { tipo, ...rest } = arr[i];
+          formatted.push(rest);
+        }
+      } else {
+        // Si hay menos de 6, repetimos los elementos de forma ordenada y removemos el campo 'tipo'
+        let i = 0;
+        while (formatted.length < 6) {
+          const { tipo, ...rest } = arr[i % arr.length];
+          formatted.push(rest);
+          i++;
+        }
+      }
+      return formatted;
+    };
+
+    // Formatear los dos arrays de sprites
+    const resultadoMedicamento = formatSpritesArray(spritesMedicamento);
+    const resultadoBacteria = formatSpritesArray(spritesBacteria);
+
+    // Devolver un objeto con los dos arrays
+    res.json({
+      medicamento: resultadoMedicamento,
+      bacteria: resultadoBacteria
+    });
+  } catch (error) {
+    console.error("Error al obtener sprites para Unity:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
+
+
 app.get("/api/escenariosUnity/:paisId", async (req, res) => {
   const { paisId } = req.params;
 
