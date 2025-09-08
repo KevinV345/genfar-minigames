@@ -66,6 +66,15 @@
                         <i data-feather="package"></i>
                         <span>Sprites</span>
                     </button>
+                    <!-- Adding roulette game navigation items -->
+                    <button class="nav-item" data-tab="ruleta-temas">
+                        <i data-feather="target"></i>
+                        <span>Temas Ruleta</span>
+                    </button>
+                    <button class="nav-item" data-tab="ruleta-preguntas">
+                        <i data-feather="rotate-cw"></i>
+                        <span>Preguntas Ruleta</span>
+                    </button>
                     <button class="nav-item admin-only" data-tab="usuarios">
                         <i data-feather="users"></i>
                         <span>Usuarios</span>
@@ -192,6 +201,55 @@
                                     <th>País</th>
                                     <th>Tipo</th>
                                     <th>Imagen URL</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Adding roulette game sections -->
+                <div id="ruleta-temasSection" class="section">
+                    <div class="section-header">
+                        <h2>Gestión de Temas de Ruleta</h2>
+                        <button id="addRuletaTemaBtn" class="btn btn-primary">Agregar Tema</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="ruletaTemasTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Color</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="ruleta-preguntasSection" class="section">
+                    <div class="section-header">
+                        <h2>Gestión de Preguntas de Ruleta</h2>
+                        <button id="addRuletaPreguntaBtn" class="btn btn-primary">Agregar Pregunta</button>
+                    </div>
+                    <div class="filters">
+                        <select id="temaFilterRuleta">
+                            <option value="">Todos los temas</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table id="ruletaPreguntasTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tema</th>
+                                    <th>Pregunta</th>
+                                    <th>Respuesta Correcta</th>
+                                    <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>

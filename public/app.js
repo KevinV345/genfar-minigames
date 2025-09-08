@@ -105,6 +105,9 @@ function setupEventListeners() {
   document.getElementById("addSpriteBtn").addEventListener("click", () => showSpriteForm())
   document.getElementById("addUsuarioBtn").addEventListener("click", () => showUsuarioForm())
 
+  document.getElementById("addRuletaTemaBtn").addEventListener("click", () => showRuletaTemaForm())
+  document.getElementById("addRuletaPreguntaBtn").addEventListener("click", () => showRuletaPreguntaForm())
+
   // Filters
   document.getElementById("paisFilter").addEventListener("change", filterPreguntas)
   document.getElementById("paisFilterEscenarios").addEventListener("change", filterEscenarios)
@@ -113,9 +116,7 @@ function setupEventListeners() {
   // Modal close
   document.querySelector(".close").addEventListener("click", closeModal)
   document.getElementById("modal").addEventListener("click", (e) => {
-    if (e.target === document.getElementById("modal")) {
-      closeModal()
-    }
+    if (e.target.id === "modal") closeModal()
   })
 }
 
@@ -228,7 +229,6 @@ function showApp() {
   }
 }
 
-// Navigation functions
 function switchTab(tabName) {
   // Hide all sections
   document.querySelectorAll(".section").forEach((section) => {
@@ -266,6 +266,13 @@ function switchTab(tabName) {
     case "sprites":
       loadSprites()
       loadPaisesForFilter()
+      break
+    case "ruleta-temas":
+      loadRuletaTemas()
+      break
+    case "ruleta-preguntas":
+      loadRuletaPreguntas()
+      loadTemasForFilter()
       break
     case "usuarios":
       if (currentUser && currentUser.es_admin) {
@@ -337,7 +344,7 @@ async function loadEscenarios() {
         }
       }),
     )
-  currentData.escenarios=escenarios
+    currentData.escenarios = escenarios
     tbody.innerHTML = escenariosWithObjects
       .map(
         (escenario) => `
@@ -392,6 +399,57 @@ async function loadLogs() {
   } catch (error) {
     console.error("Error loading logs:", error)
   }
+}
+
+async function loadRuletaTemas() {
+  try {
+    const temas = await apiRequest("/ruleta/temas")
+    currentData.ruletaTemas = temas
+    renderRuletaTemasTable(temas)
+  } catch (error) {
+    console.error("Error loading ruleta temas:", error)
+  }
+}
+
+async function loadRuletaPreguntas() {
+  try {
+    const preguntas = await apiRequest("/ruleta/preguntas")
+    currentData.ruletaPreguntas = preguntas
+    renderRuletaPreguntasTable(preguntas)
+  } catch (error) {
+    console.error("Error loading ruleta preguntas:", error)
+  }
+}
+
+async function loadTemasForFilter() {
+  if (!currentData.ruletaTemas) {
+    await loadRuletaTemas()
+  }
+
+  const temaFilter = document.getElementById("temaFilterRuleta")
+  if (temaFilter) {
+    temaFilter.innerHTML = '<option value="">Todos los temas</option>'
+    currentData.ruletaTemas.forEach((tema) => {
+      const option = document.createElement("option")
+      option.value = tema.id
+      option.textContent = tema.nombre
+      temaFilter.appendChild(option)
+    })
+
+    temaFilter.addEventListener("change", (e) => {
+      filterRuletaPreguntasByTema(e.target.value)
+    })
+  }
+}
+
+function filterRuletaPreguntasByTema(temaId) {
+  let filteredPreguntas = currentData.ruletaPreguntas || []
+
+  if (temaId) {
+    filteredPreguntas = filteredPreguntas.filter((p) => p.tema_id == temaId)
+  }
+
+  renderRuletaPreguntasTable(filteredPreguntas)
 }
 
 // Filter functions
@@ -570,6 +628,65 @@ function renderLogsTable(logs) {
             <td>${log.accion}</td>
             <td>${log.detalle || "N/A"}</td>
         `
+    tbody.appendChild(row)
+  })
+}
+
+function renderRuletaTemasTable(temas) {
+  const tbody = document.querySelector("#ruletaTemasTable tbody")
+  tbody.innerHTML = ""
+
+  temas.forEach((tema) => {
+    const row = document.createElement("tr")
+    row.innerHTML = `
+      <td>${tema.id}</td>
+      <td>${tema.nombre}</td>
+      <td>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 20px; height: 20px; background-color: ${tema.color}; border-radius: 4px; border: 1px solid #ccc;"></div>
+          <span>${tema.color}</span>
+        </div>
+      </td>
+      <td>
+        <span class="badge ${tema.activo ? "badge-success" : "badge-danger"}">
+          ${tema.activo ? "Activo" : "Inactivo"}
+        </span>
+      </td>
+      <td>
+        <button class="btn btn-warning btn-small" onclick="editRuletaTema(${tema.id})">Editar</button>
+        <button class="btn btn-danger btn-small admin-only" onclick="deleteRuletaTema(${tema.id})">Eliminar</button>
+      </td>
+    `
+    tbody.appendChild(row)
+  })
+}
+
+function renderRuletaPreguntasTable(preguntas) {
+  const tbody = document.querySelector("#ruletaPreguntasTable tbody")
+  tbody.innerHTML = ""
+
+  preguntas.forEach((pregunta) => {
+    const row = document.createElement("tr")
+    row.innerHTML = `
+      <td>${pregunta.id}</td>
+      <td>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 16px; height: 16px; background-color: ${pregunta.tema_color || "#ccc"}; border-radius: 50%;"></div>
+          <span>${pregunta.tema_nombre || "N/A"}</span>
+        </div>
+      </td>
+      <td>${pregunta.pregunta}</td>
+      <td>${pregunta.respuesta_correcta}</td>
+      <td>
+        <span class="badge ${pregunta.activa ? "badge-success" : "badge-danger"}">
+          ${pregunta.activa ? "Activa" : "Inactiva"}
+        </span>
+      </td>
+      <td>
+        <button class="btn btn-warning btn-small" onclick="editRuletaPregunta(${pregunta.id})">Editar</button>
+        <button class="btn btn-danger btn-small admin-only" onclick="deleteRuletaPregunta(${pregunta.id})">Eliminar</button>
+      </td>
+    `
     tbody.appendChild(row)
   })
 }
@@ -826,7 +943,7 @@ async function showEscenarioForm(escenario = null) {
           body: JSON.stringify(data),
         })
         loadEscenarios()
-        
+
         createdEscenarioId = response.id
 
         // Show next step info
@@ -1327,8 +1444,7 @@ async function editPregunta(id) {
 }
 
 async function editEscenario(id) {
-  console.log(currentData);
-  
+  console.log(currentData)
 
   const escenario = currentData.escenarios.find((e) => e.id === id)
   if (escenario) {
@@ -1412,6 +1528,20 @@ async function deleteUsuario(id) {
   }
 }
 
+async function deleteRuletaTema(id) {
+  if (
+    confirm("¿Estás seguro de que quieres eliminar este tema? Esto también eliminará todas las preguntas asociadas.")
+  ) {
+    try {
+      await apiRequest(`/ruleta/temas/${id}`, { method: "DELETE" })
+      loadRuletaTemas()
+      showSuccessMessage("Tema eliminado correctamente")
+    } catch (error) {
+      showErrorMessage("Error al eliminar el tema: " + error.message)
+    }
+  }
+}
+
 function loadPaisesForSelect(selectId) {
   const select = document.getElementById(selectId)
   select.innerHTML = '<option value="">Seleccionar país</option>'
@@ -1424,26 +1554,161 @@ function loadPaisesForSelect(selectId) {
   })
 }
 
+function showRuletaTemaForm(tema = null) {
+  const isEdit = tema !== null
+  const title = isEdit ? "Editar Tema de Ruleta" : "Agregar Tema de Ruleta"
+
+  const content = `
+    <form id="ruletaTemaForm">
+      <div class="form-group">
+        <label for="temaNombre">Nombre del Tema:</label>
+        <input type="text" id="temaNombre" value="${isEdit ? tema.nombre : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="temaColor">Color:</label>
+        <input type="color" id="temaColor" value="${isEdit ? tema.color : "#000000"}" required>
+      </div>
+      <div class="form-group">
+        <label for="temaActivo">Activo:</label>
+        <input type="checkbox" id="temaActivo" ${isEdit && tema.activo ? "checked" : ""}>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"} Tema</button>
+      </div>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("ruletaTemaForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+
+    const data = {
+      nombre: document.getElementById("temaNombre").value,
+      color: document.getElementById("temaColor").value,
+      activo: document.getElementById("temaActivo").checked,
+    }
+
+    try {
+      if (isEdit) {
+        await apiRequest(`/ruleta/temas/${tema.id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        })
+      } else {
+        await apiRequest("/ruleta/temas", {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      }
+
+      closeModal()
+      loadRuletaTemas()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
+function showRuletaPreguntaForm(pregunta = null) {
+  const isEdit = pregunta !== null
+  const title = isEdit ? "Editar Pregunta de Ruleta" : "Agregar Pregunta de Ruleta"
+
+  const temasOptions = currentData.ruletaTemas
+    ? currentData.ruletaTemas
+        .map(
+          (tema) =>
+            `<option value="${tema.id}" ${isEdit && pregunta.tema_id === tema.id ? "selected" : ""}>${tema.nombre}</option>`,
+        )
+        .join("")
+    : '<option value="">Seleccionar tema</option>'
+
+  const content = `
+    <form id="ruletaPreguntaForm">
+      <div class="form-group">
+        <label for="preguntaTema">Tema:</label>
+        <select id="preguntaTema" required>
+          ${temasOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="preguntaTextoRuleta">Pregunta:</label>
+        <textarea id="preguntaTextoRuleta" required>${isEdit ? pregunta.pregunta : ""}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="respuestaCorrectaRuleta">Respuesta Correcta:</label>
+        <input type="text" id="respuestaCorrectaRuleta" value="${isEdit ? pregunta.respuesta_correcta : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta1Ruleta">Respuesta 1:</label>
+        <input type="text" id="respuesta1Ruleta" value="${isEdit ? pregunta.respuesta_1 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta2Ruleta">Respuesta 2:</label>
+        <input type="text" id="respuesta2Ruleta" value="${isEdit ? pregunta.respuesta_2 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta3Ruleta">Respuesta 3:</label>
+        <input type="text" id="respuesta3Ruleta" value="${isEdit ? pregunta.respuesta_3 : ""}" required>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"} Pregunta</button>
+      </div>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("ruletaPreguntaForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+
+    const data = {
+      tema_id: document.getElementById("preguntaTema").value,
+      pregunta: document.getElementById("preguntaTextoRuleta").value,
+      respuesta_correcta: document.getElementById("respuestaCorrectaRuleta").value,
+      respuesta_1: document.getElementById("respuesta1Ruleta").value,
+      respuesta_2: document.getElementById("respuesta2Ruleta").value,
+      respuesta_3: document.getElementById("respuesta3Ruleta").value,
+    }
+
+    try {
+      if (isEdit) {
+        await apiRequest(`/ruleta/preguntas/${pregunta.id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        })
+      } else {
+        await apiRequest("/ruleta/preguntas", {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      }
+
+      closeModal()
+      loadRuletaPreguntas()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
 function showNotification(message, type) {
   const notification = document.createElement("div")
   notification.className = `notification ${type}`
   notification.textContent = message
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 12px 24px;
-    border-radius: 8px;
-    color: white;
-    font-weight: 600;
-    z-index: 10000;
-    ${type === "success" ? "background-color: #10b981;" : "background-color: #ef4444;"}
-  `
   document.body.appendChild(notification)
 
   setTimeout(() => {
-    if (document.body.contains(notification)) {
-      document.body.removeChild(notification)
-    }
+    document.body.removeChild(notification)
   }, 3000)
+}
+
+function showSuccessMessage(message) {
+  showNotification(message, "success")
+}
+
+function showErrorMessage(message) {
+  showNotification(message, "error")
 }

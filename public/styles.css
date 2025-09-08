@@ -801,3 +801,13 @@ body.admin .section.admin-only.active {
     font-weight: 600;
     margin-right: 8px;
 }
+
+.badge-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.badge-danger {
+    background-color: #ef4444;
+    color: white;
+}

@@ -266,6 +266,73 @@ INSERT INTO `usuarios` (`id`, `nombre`, `correo`, `contrasena_hash`, `es_admin`)
 (1, 'Administrador', 'admin@minijuegos.com', '$2b$10$J1Om/N55Gp8H/5DkpAxCnOQRP6fm5g4CqBEqutgbZwtlcoGSiHSqu', 1),
 (2, 'kevin', 'vargasparrakevin@gmail.com', '$2b$10$WaFmHPoXGazcUfjKekC4deRRRGVcG2BgH.XDFJQJr818GFWKv/Vve', 0);
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `ruleta_temas`
+--
+
+DROP TABLE IF EXISTS `ruleta_temas`;
+CREATE TABLE IF NOT EXISTS `ruleta_temas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `color` varchar(7) NOT NULL DEFAULT '#3498db' COMMENT 'Color hexadecimal para la ruleta',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `ruleta_temas`
+--
+
+INSERT INTO `ruleta_temas` (`id`, `nombre`, `color`, `activo`) VALUES
+(1, 'Historia', '#e74c3c', 1),
+(2, 'Ciencia', '#3498db', 1),
+(3, 'Deportes', '#2ecc71', 1),
+(4, 'Arte', '#9b59b6', 1),
+(5, 'Geografía', '#f39c12', 1),
+(6, 'Tecnología', '#1abc9c', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `ruleta_preguntas`
+--
+
+DROP TABLE IF EXISTS `ruleta_preguntas`;
+CREATE TABLE IF NOT EXISTS `ruleta_preguntas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tema_id` int NOT NULL,
+  `pregunta` text NOT NULL,
+  `respuesta_correcta` varchar(255) NOT NULL,
+  `respuesta_1` varchar(255) NOT NULL,
+  `respuesta_2` varchar(255) NOT NULL,
+  `respuesta_3` varchar(255) NOT NULL,
+  `activa` tinyint(1) NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  KEY `tema_id` (`tema_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `ruleta_preguntas`
+--
+
+INSERT INTO `ruleta_preguntas` (`id`, `tema_id`, `pregunta`, `respuesta_correcta`, `respuesta_1`, `respuesta_2`, `respuesta_3`, `activa`) VALUES
+(1, 1, '¿En qué año comenzó la Segunda Guerra Mundial?', '1939', '1940', '1938', '1941', 1),
+(2, 1, '¿Quién fue el primer emperador romano?', 'Augusto', 'Julio César', 'Nerón', 'Trajano', 1),
+(3, 2, '¿Cuál es el elemento químico con símbolo Au?', 'Oro', 'Plata', 'Aluminio', 'Argón', 1),
+(4, 2, '¿Cuántos huesos tiene el cuerpo humano adulto?', '206', '208', '204', '210', 1),
+(5, 3, '¿En qué deporte se usa un birdie?', 'Bádminton', 'Tenis', 'Golf', 'Ping pong', 1),
+(6, 3, '¿Cada cuántos años se celebran los Juegos Olímpicos?', '4 años', '2 años', '3 años', '5 años', 1),
+(7, 4, '¿Quién pintó "La noche estrellada"?', 'Van Gogh', 'Picasso', 'Monet', 'Da Vinci', 1),
+(8, 4, '¿En qué museo se encuentra la Mona Lisa?', 'Louvre', 'Prado', 'Metropolitan', 'Uffizi', 1),
+(9, 5, '¿Cuál es la capital de Australia?', 'Canberra', 'Sydney', 'Melbourne', 'Perth', 1),
+(10, 5, '¿Cuál es el río más largo del mundo?', 'Nilo', 'Amazonas', 'Yangtsé', 'Misisipi', 1),
+(11, 6, '¿Qué significa HTML?', 'HyperText Markup Language', 'High Tech Modern Language', 'Home Tool Markup Language', 'Hyperlink Text Management Language', 1),
+(12, 6, '¿En qué año se fundó Google?', '1998', '1996', '2000', '1999', 1);
+
+-- --------------------------------------------------------
+
 --
 -- Restricciones para tablas volcadas
 --
@@ -299,6 +366,13 @@ ALTER TABLE `genfy_pregunta`
 --
 ALTER TABLE `mision_genfy_sprites`
   ADD CONSTRAINT `mision_genfy_sprites_ibfk_1` FOREIGN KEY (`pais_id`) REFERENCES `paises` (`id`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `ruleta_preguntas`
+--
+ALTER TABLE `ruleta_preguntas`
+  ADD CONSTRAINT `ruleta_preguntas_ibfk_1` FOREIGN KEY (`tema_id`) REFERENCES `ruleta_temas` (`id`) ON DELETE CASCADE;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
