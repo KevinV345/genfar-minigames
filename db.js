@@ -13,15 +13,16 @@ import mysql from "mysql2/promise"
 
 
 const dbConfig = {
-  host: "localhost",
-  port: 3306 ,
+  host: "127.0.0.1",   // 👈 fuerza IPv4
+  port: 3306,
   user: "root",
-  password: "",
+  password: "",        // tu contraseña de MySQL
   database: "minijuegos",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 }
+
 
 
 
