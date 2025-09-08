@@ -1466,6 +1466,20 @@ async function editUsuario(id) {
   }
 }
 
+async function editRuletaTema(id) {
+  const tema = currentData.ruletaTemas.find((t) => t.id === id)
+  if (tema) {
+    showRuletaTemaForm(tema)
+  }
+}
+
+async function editRuletaPregunta(id) {
+  const pregunta = currentData.ruletaPreguntas.find((p) => p.id === id)
+  if (pregunta) {
+    showRuletaPreguntaForm(pregunta)
+  }
+}
+
 // Delete functions
 async function deletePais(id) {
   if (

@@ -1077,10 +1077,20 @@ app.post("/api/ruleta/preguntas", auth(true), async (req, res) => {
 app.put("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
   try {
     const { tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa } = req.body
-    await pool.query(
-      "UPDATE ruleta_preguntas SET tema_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=?, activa=? WHERE id=?",
-      [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa ? 1 : 0, req.params.id],
-    )
+
+    // Only update activa if it's explicitly provided, otherwise keep current value
+    if (activa !== undefined) {
+      await pool.query(
+        "UPDATE ruleta_preguntas SET tema_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=?, activa=? WHERE id=?",
+        [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa ? 1 : 0, req.params.id],
+      )
+    } else {
+      await pool.query(
+        "UPDATE ruleta_preguntas SET tema_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=? WHERE id=?",
+        [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, req.params.id],
+      )
+    }
+
     const [temaInfo] = await pool.query("SELECT nombre FROM ruleta_temas WHERE id=?", [tema_id])
     const nombreTema = temaInfo.length > 0 ? temaInfo[0].nombre : "Tema desconocido"
     const usuario = await getUserInfo(req.user.id)
@@ -1121,6 +1131,39 @@ app.delete("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
     res.json({ mensaje: "Pregunta eliminada" })
   } catch (error) {
     console.error("Error deleting ruleta pregunta:", error)
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+// Unity endpoint for roulette game
+app.get("/api/ruletaUnity/:paisId", async (req, res) => {
+  try {
+    const { paisId } = req.params
+
+    // Obtener todos los temas activos con sus preguntas
+    const [temas] = await pool.query(`SELECT id, nombre FROM ruleta_temas WHERE activo = 1 ORDER BY id`)
+
+    const ruletaData = {}
+
+    // Para cada tema, obtener sus preguntas activas y crear la estructura simplificada
+    for (const tema of temas) {
+      const [preguntas] = await pool.query(
+        `SELECT pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3 FROM ruleta_preguntas WHERE tema_id = ? AND activa = 1`,
+        [tema.id],
+      )
+
+      ruletaData[tema.nombre.toLowerCase()] = preguntas.map((p) => ({
+        pregunta: p.pregunta,
+        respuestas: [p.respuesta_correcta, p.respuesta_1, p.respuesta_2, p.respuesta_3].filter(
+          (respuesta) => respuesta && respuesta.trim() !== "",
+        ), // Filtrar respuestas vacías
+        correcta: p.respuesta_correcta,
+      }))
+    }
+
+    res.json(ruletaData)
+  } catch (error) {
+    console.error("Error al obtener datos de ruleta para Unity:", error)
     res.status(500).json({ error: "Error del servidor" })
   }
 })
