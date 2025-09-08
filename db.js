@@ -1,27 +1,27 @@
 import mysql from "mysql2/promise"
 
-const dbConfig = {
-  host: "nozomi.proxy.rlwy.net",
-  port: 48666,
-  user: "root",
-  password: "bjByHffRRNUhDEQuVeXkjDwSdmKLNYuf",
-  database: "railway",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-}
-
-
 // const dbConfig = {
-//   host: "localhost",
-//   port: 3306 ,
+//   host: "nozomi.proxy.rlwy.net",
+//   port: 48666,
 //   user: "root",
-//   password: "",
-//   database: "minijuegos",
+//   password: "bjByHffRRNUhDEQuVeXkjDwSdmKLNYuf",
+//   database: "railway",
 //   waitForConnections: true,
 //   connectionLimit: 10,
 //   queueLimit: 0,
 // }
+
+
+const dbConfig = {
+  host: "localhost",
+  port: 3306 ,
+  user: "root",
+  password: "",
+  database: "minijuegos",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+}
 
 
 

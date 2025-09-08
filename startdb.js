@@ -3,13 +3,15 @@ import mysql from "mysql2/promise";
 
 // Configuración de la DB
 const dbConfig = {
-  host: "nozomi.proxy.rlwy.net",
-  port: 48666,
+  host: "localhost",
+  port: 3306 ,
   user: "root",
-  password: "bjByHffRRNUhDEQuVeXkjDwSdmKLNYuf",
-  database: "railway",
-  multipleStatements: true, // ⚠️ necesario para ejecutar varios statements del archivo SQL
-};
+  password: "",
+  database: "minijuegos",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+}
 
 async function runSQL() {
   let connection;
