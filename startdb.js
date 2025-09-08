@@ -1,39 +1,35 @@
-import fs from "fs";
 import mysql from "mysql2/promise";
 
-// Configuración de la DB
 const dbConfig = {
-  host: "localhost",
-  port: 3306 ,
+  host: "127.0.0.1",   // igual que en tu comando
+  port: 3306,
   user: "root",
-  password: "",
+  password: "Kevin2025@BGA",   // 👈 pon aquí la clave que usas en consola
   database: "minijuegos",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-}
+};
 
-async function runSQL() {
-  let connection;
-  try {
-    // Leer archivo SQL
-    const sqlFile = fs.readFileSync("sql.sql", "utf-8");
+// Pool de conexiones
+export const pool = mysql.createPool(dbConfig);
 
-    // Crear conexión
-    connection = await mysql.createConnection(dbConfig);
-    console.log("✅ Conectado a Railway MySQL");
+// Probar conexión
+pool
+  .getConnection()
+  .then((connection) => {
+    console.log("✅ Conectado a MySQL en VPS");
+    connection.release();
+  })
+  .catch((error) => {
+    console.error("❌ Falló la conexión:", error.message);
+  });
 
-    // Ejecutar script
-    await connection.query(sqlFile);
-    console.log("🎉 Script SQL ejecutado correctamente");
+// Cierre elegante
+process.on("SIGINT", async () => {
+  console.log("Cerrando conexiones...");
+  await pool.end();
+  process.exit(0);
+});
 
-  } catch (err) {
-    console.error("❌ Error ejecutando script:", err.message);
-  } finally {
-    if (connection) {
-      await connection.end();
-    }
-  }
-}
-
-runSQL();
+export default pool;
