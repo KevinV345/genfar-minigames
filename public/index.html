@@ -168,6 +168,7 @@
                     <div class="section-header">
                         <h2>Gestión de Sprites</h2>
                         <button id="addSpriteBtn" class="btn btn-primary admin-only">Agregar Sprite</button>
+                        <button id="manageTerapiasBtn" class="btn btn-secondary admin-only">Gestionar Terapias</button>
                     </div>
                     <div class="filters">
                         <select id="paisFilterSprites">
@@ -187,6 +188,27 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
+
+                    <div id="terapiasSubsection" style="display: none;">
+                        <div class="section-header">
+                            <h3>Asociaciones de Terapia</h3>
+                            <button id="addTerapiaBtn" class="btn btn-primary">Agregar Asociación</button>
+                            <button id="backToSpritesBtn" class="btn btn-secondary">Volver a Sprites</button>
+                        </div>
+                        <div class="table-container">
+                            <table id="terapiasTable">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Medicamento</th>
+                                        <th>Bacteria</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 

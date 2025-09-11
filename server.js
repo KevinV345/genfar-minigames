@@ -566,6 +566,7 @@ app.get("/api/spritesUnity/:paisId", async (req, res) => {
   try {
     const { paisId } = req.params
 
+    // Get all sprites for the country
     const [sprites] = await pool.query(
       `SELECT s.id, s.tipo, s.imagen_url
         FROM mision_genfy_sprites s
@@ -579,44 +580,66 @@ app.get("/api/spritesUnity/:paisId", async (req, res) => {
       return res.status(404).json({ error: "No se encontraron sprites para el país especificado." })
     }
 
-    // Dividir los sprites en dos arrays según el tipo
+    // Get therapy associations
+    const [terapias] = await pool.query(
+      `SELECT t.medicamento_id, t.bacteria_id
+        FROM mision_genfy_terapias t
+        JOIN mision_genfy_sprites_paises sp1 ON t.medicamento_id = sp1.sprite_id
+        JOIN mision_genfy_sprites_paises sp2 ON t.bacteria_id = sp2.sprite_id
+        WHERE sp1.pais_id = ? AND sp2.pais_id = ?`,
+      [paisId, paisId],
+    )
+
+    // Separate sprites by type
     const spritesMedicamento = sprites.filter((s) => s.tipo === "medicamento")
     const spritesBacteria = sprites.filter((s) => s.tipo === "bacteria")
 
-    // Función para asegurar que un array tenga exactamente 6 elementos y el formato de datos correcto
-    const formatSpritesArray = (arr) => {
-      // Check if array is empty
-      if (!arr || arr.length === 0) {
-        return []
+    // Create therapy pairs and remaining sprites
+    const medicamentoArray = []
+    const bacteriaArray = []
+    const usedMedicamentos = new Set()
+    const usedBacterias = new Set()
+
+    // First, add therapy pairs maintaining same index
+    terapias.forEach((terapia) => {
+      const medicamento = spritesMedicamento.find((s) => s.id === terapia.medicamento_id)
+      const bacteria = spritesBacteria.find((s) => s.id === terapia.bacteria_id)
+
+      if (medicamento && bacteria) {
+        const { tipo: tipoMed, ...medicamentoData } = medicamento
+        const { tipo: tipoBac, ...bacteriaData } = bacteria
+
+        medicamentoArray.push(medicamentoData)
+        bacteriaArray.push(bacteriaData)
+        usedMedicamentos.add(medicamento.id)
+        usedBacterias.add(bacteria.id)
+      }
+    })
+
+    // Fill remaining slots with unpaired sprites
+    const remainingMedicamentos = spritesMedicamento.filter((s) => !usedMedicamentos.has(s.id))
+    const remainingBacterias = spritesBacteria.filter((s) => !usedBacterias.has(s.id))
+
+    // Function to fill array to exactly 6 elements
+    const fillToSix = (targetArray, sourceArray) => {
+      while (targetArray.length < 6) {
+        if (sourceArray.length === 0) break
+
+        const sprite = sourceArray[targetArray.length % sourceArray.length]
+        const { tipo, ...spriteData } = sprite
+        targetArray.push(spriteData)
       }
 
-      const formatted = []
-      if (arr.length >= 6) {
-        // Si hay 6 o más, tomamos los 6 primeros y removemos el campo 'tipo'
-        for (let i = 0; i < 6; i++) {
-          const { tipo, ...rest } = arr[i]
-          formatted.push(rest)
-        }
-      } else {
-        // Si hay menos de 6, repetimos los elementos de forma ordenada y removemos el campo 'tipo'
-        let i = 0
-        while (formatted.length < 6) {
-          const { tipo, ...rest } = arr[i % arr.length]
-          formatted.push(rest)
-          i++
-        }
-      }
-      return formatted
+      // Ensure exactly 6 elements
+      return targetArray.slice(0, 6)
     }
 
-    // Formatear los dos arrays de sprites
-    const resultadoMedicamento = formatSpritesArray(spritesMedicamento)
-    const resultadoBacteria = formatSpritesArray(spritesBacteria)
+    const finalMedicamentos = fillToSix([...medicamentoArray], remainingMedicamentos)
+    const finalBacterias = fillToSix([...bacteriaArray], remainingBacterias)
 
-    // Devolver un objeto con los dos arrays
     res.json({
-      medicamento: resultadoMedicamento,
-      bacteria: resultadoBacteria,
+      medicamento: finalMedicamentos,
+      bacteria: finalBacterias,
     })
   } catch (error) {
     console.error("Error al obtener sprites para Unity:", error)
@@ -1013,6 +1036,74 @@ app.delete("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   } finally {
     connection.release()
+  }
+})
+
+app.get("/api/terapias", async (req, res) => {
+  try {
+    const [terapias] = await pool.query(`
+      SELECT t.id, t.medicamento_id, t.bacteria_id,
+             m.imagen_url as medicamento_imagen, m.id as medicamento_sprite_id,
+             b.imagen_url as bacteria_imagen, b.id as bacteria_sprite_id
+      FROM mision_genfy_terapias t
+      JOIN mision_genfy_sprites m ON t.medicamento_id = m.id
+      JOIN mision_genfy_sprites b ON t.bacteria_id = b.id
+      ORDER BY t.id
+    `)
+    res.json(terapias)
+  } catch (error) {
+    console.error("Error al obtener terapias:", error)
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.post("/api/terapias", async (req, res) => {
+  try {
+    const { medicamento_id, bacteria_id } = req.body
+
+    if (!medicamento_id || !bacteria_id) {
+      return res.status(400).json({ error: "Medicamento y bacteria son requeridos" })
+    }
+
+    // Verify that both sprites exist and are of correct type
+    const [medicamento] = await pool.query(
+      "SELECT id FROM mision_genfy_sprites WHERE id = ? AND tipo = 'medicamento'",
+      [medicamento_id],
+    )
+    const [bacteria] = await pool.query("SELECT id FROM mision_genfy_sprites WHERE id = ? AND tipo = 'bacteria'", [
+      bacteria_id,
+    ])
+
+    if (medicamento.length === 0) {
+      return res.status(400).json({ error: "Medicamento no encontrado" })
+    }
+    if (bacteria.length === 0) {
+      return res.status(400).json({ error: "Bacteria no encontrada" })
+    }
+
+    const [result] = await pool.query("INSERT INTO mision_genfy_terapias (medicamento_id, bacteria_id) VALUES (?, ?)", [
+      medicamento_id,
+      bacteria_id,
+    ])
+
+    res.json({ id: result.insertId, medicamento_id, bacteria_id })
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(400).json({ error: "Esta asociación de terapia ya existe" })
+    }
+    console.error("Error al crear terapia:", error)
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.delete("/api/terapias/:id", async (req, res) => {
+  try {
+    const { id } = req.params
+    await pool.query("DELETE FROM mision_genfy_terapias WHERE id = ?", [id])
+    res.json({ message: "Terapia eliminada correctamente" })
+  } catch (error) {
+    console.error("Error al eliminar terapia:", error)
+    res.status(500).json({ error: "Error del servidor" })
   }
 })
 

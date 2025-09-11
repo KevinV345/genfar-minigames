@@ -94,6 +94,10 @@ function setupEventListeners() {
   document.getElementById("addUsuarioBtn")?.addEventListener("click", () => showUsuarioForm())
   document.getElementById("addRuletaTemaBtn")?.addEventListener("click", () => showRuletaTemaForm())
   document.getElementById("addRuletaPreguntaBtn")?.addEventListener("click", () => showRuletaPreguntaForm())
+  document.getElementById("addSpriteBtn")?.addEventListener("click", () => showSpriteForm())
+  document.getElementById("manageTerapiasBtn")?.addEventListener("click", () => showTerapiasSection())
+  document.getElementById("addTerapiaBtn")?.addEventListener("click", () => showTerapiaForm())
+  document.getElementById("backToSpritesBtn")?.addEventListener("click", () => hideTerapiasSection())
 
   document.getElementById("paisFilterPreguntas").addEventListener("change", filterPreguntas)
   document.getElementById("paisFilterEscenarios").addEventListener("change", filterEscenarios)
@@ -303,6 +307,151 @@ function renderEscenariosTable(scenarios) {
 async function loadSprites() {
   currentData.sprites = await apiRequest("/sprites")
   renderSpritesTable(currentData.sprites)
+}
+
+async function loadTerapias() {
+  try {
+    currentData.terapias = await apiRequest("/terapias")
+    renderTerapiasTable(currentData.terapias)
+  } catch (error) {
+    console.error("Error loading terapias:", error)
+    currentData.terapias = []
+  }
+}
+
+function showTerapiaForm() {
+  const medicamentos = currentData.sprites.filter((s) => s.tipo === "medicamento")
+  const bacterias = currentData.sprites.filter((s) => s.tipo === "bacteria")
+
+  if (medicamentos.length === 0 || bacterias.length === 0) {
+    alert("Necesitas tener al menos un medicamento y una bacteria para crear una asociación de terapia")
+    return
+  }
+
+  const content = `
+    <form id="terapiaForm">
+      <div class="form-group">
+        <label for="medicamentoSelect">Medicamento:</label>
+        <select id="medicamentoSelect" required>
+          <option value="">Seleccionar medicamento...</option>
+        </select>
+        <div id="medicamentoPreview" class="sprite-preview"></div>
+      </div>
+      <div class="form-group">
+        <label for="bacteriaSelect">Bacteria:</label>
+        <select id="bacteriaSelect" required>
+          <option value="">Seleccionar bacteria...</option>
+        </select>
+        <div id="bacteriaPreview" class="sprite-preview"></div>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear Asociación</button>
+      </div>
+    </form>
+  `
+  showModal("Agregar Asociación de Terapia", content)
+
+  const medicamentoSelect = document.getElementById("medicamentoSelect")
+  const bacteriaSelect = document.getElementById("bacteriaSelect")
+  const medicamentoPreview = document.getElementById("medicamentoPreview")
+  const bacteriaPreview = document.getElementById("bacteriaPreview")
+
+  medicamentos.forEach((m) => {
+    const option = document.createElement("option")
+    option.value = m.id
+    option.textContent = `${m.nombre || `ID: ${m.id}`} - Países: ${m.paises_nombres || "Sin asignar"}`
+    option.dataset.imagen = m.imagen_url
+    option.dataset.paises = m.paises_nombres || ""
+    medicamentoSelect.appendChild(option)
+  })
+
+  function updateBacteriaOptions() {
+    const selectedMedicamento = medicamentos.find((m) => m.id == medicamentoSelect.value)
+    bacteriaSelect.innerHTML = '<option value="">Seleccionar bacteria...</option>'
+
+    if (selectedMedicamento) {
+      const medicamentoPaises = selectedMedicamento.paises_nombres || ""
+      const compatibleBacterias = bacterias.filter((b) => {
+        const bacteriaPaises = b.paises_nombres || ""
+        return bacteriaPaises === medicamentoPaises
+      })
+
+      if (compatibleBacterias.length === 0) {
+        const option = document.createElement("option")
+        option.textContent = "No hay bacterias con los mismos países"
+        option.disabled = true
+        bacteriaSelect.appendChild(option)
+      } else {
+        compatibleBacterias.forEach((b) => {
+          const option = document.createElement("option")
+          option.value = b.id
+          option.textContent = `${b.nombre || `ID: ${b.id}`} - Países: ${b.paises_nombres || "Sin asignar"}`
+          option.dataset.imagen = b.imagen_url
+          option.dataset.paises = b.paises_nombres || ""
+          bacteriaSelect.appendChild(option)
+        })
+      }
+    }
+  }
+
+  medicamentoSelect.addEventListener("change", (e) => {
+    const selectedOption = e.target.selectedOptions[0]
+    if (selectedOption && selectedOption.dataset.imagen) {
+      medicamentoPreview.innerHTML = `
+        <div class="sprite-card">
+          <img src="${selectedOption.dataset.imagen}" alt="Medicamento" />
+          <p><strong>Países:</strong> ${selectedOption.dataset.paises || "Sin asignar"}</p>
+        </div>
+      `
+    } else {
+      medicamentoPreview.innerHTML = ""
+    }
+    updateBacteriaOptions()
+    bacteriaPreview.innerHTML = ""
+  })
+
+  bacteriaSelect.addEventListener("change", (e) => {
+    const selectedOption = e.target.selectedOptions[0]
+    if (selectedOption && selectedOption.dataset.imagen) {
+      bacteriaPreview.innerHTML = `
+        <div class="sprite-card">
+          <img src="${selectedOption.dataset.imagen}" alt="Bacteria" />
+          <p><strong>Países:</strong> ${selectedOption.dataset.paises || "Sin asignar"}</p>
+        </div>
+      `
+    } else {
+      bacteriaPreview.innerHTML = ""
+    }
+  })
+
+  document.getElementById("terapiaForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const medicamento_id = document.getElementById("medicamentoSelect").value
+    const bacteria_id = document.getElementById("bacteriaSelect").value
+
+    try {
+      await apiRequest("/terapias", {
+        method: "POST",
+        body: JSON.stringify({ medicamento_id, bacteria_id }),
+      })
+      closeModal()
+      loadTerapias()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
+async function deleteTerapia(id) {
+  if (confirm("¿Estás seguro de que quieres eliminar esta asociación de terapia?")) {
+    try {
+      await apiRequest(`/terapias/${id}`, { method: "DELETE" })
+      loadTerapias()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  }
 }
 
 function renderSpritesTable(sprites) {
@@ -1485,4 +1634,56 @@ function filterRuletaPreguntas() {
   }
 
   renderRuletaPreguntasTable(filtered)
+}
+
+function showTerapiasSection() {
+  document.querySelector("#spritesSection .section-header").style.display = "none"
+  document.querySelector("#spritesSection .filters").style.display = "none"
+  document.querySelector("#spritesTable").parentElement.style.display = "none"
+  document.querySelector("#terapiasSubsection").style.display = "block"
+  loadTerapias()
+}
+
+function hideTerapiasSection() {
+  document.querySelector("#spritesSection .section-header").style.display = "flex"
+  document.querySelector("#spritesSection .filters").style.display = "block"
+  document.querySelector("#spritesTable").parentElement.style.display = "block"
+  document.querySelector("#terapiasSubsection").style.display = "none"
+}
+
+function renderTerapiasTable(terapias) {
+  const tbody = document.querySelector("#terapiasTable tbody")
+  tbody.innerHTML = ""
+
+  terapias.forEach((terapia) => {
+    const row = document.createElement("tr")
+    const medicamentoName = terapia.medicamento_nombre || `ID: ${terapia.medicamento_id}`
+    const bacteriaName = terapia.bacteria_nombre || `ID: ${terapia.bacteria_id}`
+
+    row.innerHTML = `
+      <td>${terapia.id}</td>
+      <td>
+        <div class="sprite-info">
+          <img src="${terapia.medicamento_imagen}" alt="Medicamento" class="sprite-thumbnail" />
+          <div>
+            <strong>${medicamentoName}</strong><br>
+            <small>Países: ${terapia.medicamento_paises || "Sin asignar"}</small>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="sprite-info">
+          <img src="${terapia.bacteria_imagen}" alt="Bacteria" class="sprite-thumbnail" />
+          <div>
+            <strong>${bacteriaName}</strong><br>
+            <small>Países: ${terapia.bacteria_paises || "Sin asignar"}</small>
+          </div>
+        </div>
+      </td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deleteTerapia(${terapia.id})">Eliminar</button>
+      </td>
+    `
+    tbody.appendChild(row)
+  })
 }
