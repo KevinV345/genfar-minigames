@@ -977,14 +977,23 @@ app.get("/api/escenariosUnity/:paisId", async (req, res) => {
 app.get("/api/terapias", async (req, res) => {
   try {
     const [terapias] = await pool.query(
-      `SELECT t.id, t.medicamento_id, t.bacteria_id FROM mision_genfy_terapias t ORDER BY t.id`,
-    )
-    res.json(terapias)
+      `SELECT
+         t.id,
+         t.medicamento_id,
+         t.bacteria_id,
+         med_sprite.imagen_url AS medicamento_imagen,
+         bac_sprite.imagen_url AS bacteria_imagen
+       FROM mision_genfy_terapias t
+       LEFT JOIN mision_genfy_sprites AS med_sprite ON t.medicamento_id = med_sprite.id
+       LEFT JOIN mision_genfy_sprites AS bac_sprite ON t.bacteria_id = bac_sprite.id
+       ORDER BY t.id`
+    );
+    res.json(terapias);
   } catch (error) {
-    console.error("Error al obtener terapias:", error)
-    res.status(500).json({ error: "Error del servidor" })
+    console.error("Error al obtener terapias:", error);
+    res.status(500).json({ error: "Error del servidor" });
   }
-})
+});
 
 app.post("/api/terapias", async (req, res) => {
   try {

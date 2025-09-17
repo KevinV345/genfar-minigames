@@ -84,7 +84,7 @@ function setupEventListeners() {
   document.getElementById("logoutBtn").addEventListener("click", handleLogout)
 
   document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
-    item.addEventListener("click", (e) => switchTab(e.target.closest(".nav-item").dataset.tab))
+    item.addEventListener("click", (e) => switchTabFn(e.target.closest(".nav-item").dataset.tab))
   })
 
   document.getElementById("addPaisBtn")?.addEventListener("click", () => showPaisForm())
@@ -166,11 +166,11 @@ async function showApp() {
   document.body.classList.toggle("admin", currentUser && currentUser.es_admin)
 
   await loadPaises() // Load countries first as they are needed by others
-  switchTab("paises")
+  switchTabFn("paises")
   feather.replace()
 }
 
-function switchTab(tabName) {
+function switchTabFn(tabName) {
   document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"))
   document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"))
   document.getElementById(`${tabName}Section`).classList.add("active")
@@ -194,10 +194,10 @@ function switchTab(tabName) {
     },
     "ruleta-temas": loadRuletaTemas,
     "ruleta-preguntas": async () => {
-      await loadRuletaTemas(); // Agrega esta línea para cargar los temas primero.
-      loadRuletaPreguntas();
-      loadTemasForFilter();
-      loadPaisesForFilter("paisFilterRuleta");
+      await loadRuletaTemas() // Agrega esta línea para cargar los temas primero.
+      loadRuletaPreguntas()
+      loadTemasForFilter()
+      loadPaisesForFilter("paisFilterRuleta")
     },
     usuarios: loadUsuarios,
     logs: loadLogs,
@@ -346,6 +346,7 @@ function showEscenarioForm(escenario = null) {
       <div class="form-group">
         <label for="imagenFondo">Imagen de Fondo:</label>
         <input type="file" id="imagenFondo" accept="image/*" ${!isEdit ? "required" : ""}>
+        <small>Tamaño máximo de archivo: 5 MB</small>
         ${isEdit ? `<p class="current-image">Imagen actual: <img src="${escenario.imagen_fondo}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
       </div>
       <div class="form-buttons">
@@ -466,6 +467,7 @@ function showAddObjectForm(escenarioId) {
       <div class="form-group">
         <label for="objectImage">Imagen del Objeto:</label>
         <input type="file" id="objectImage" accept="image/*" required>
+        <small>Tamaño máximo de archivo: 5 MB</small>
       </div>
       <div class="form-group">
         <label for="objectUrl">Url:</label>
@@ -765,10 +767,7 @@ function showTerapiaForm() {
     const bacteria_id = document.getElementById("bacteriaSelect").value
 
     try {
-      await apiRequest("/terapias", {
-        method: "POST",
-        body: JSON.stringify({ medicamento_id, bacteria_id }),
-      })
+      await apiRequest("/terapias", "POST", { medicamento_id, bacteria_id })
       closeModal()
       loadTerapias()
     } catch (error) {
@@ -1025,6 +1024,7 @@ function showSpriteForm(sprite = null) {
       <div class="form-group">
         <label for="spriteImagen">Imagen:</label>
         <input type="file" id="spriteImagen" accept="image/*" ${!isEdit ? "required" : ""}>
+        <small>Tamaño máximo de archivo: 5 MB</small>
         ${isEdit ? `<p class="current-image">Imagen actual: <img src="${sprite.imagen_url}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
       </div>
       <div class="form-group" id="enlaceGroup" style="display: ${isEdit && sprite.tipo === "medicamento" ? "block" : isEdit ? "none" : "block"};">
@@ -1189,14 +1189,14 @@ async function deletePregunta(id) {
 
 async function deleteEscenario(id) {
   if (!confirm("¿Estás seguro de que quieres eliminar este escenario?")) {
-    return;
+    return
   }
   try {
-    await apiRequest(`/escenarios/${id}`, "DELETE");
-    alert("Escenario eliminado exitosamente");
-    await loadEscenarios();
+    await apiRequest(`/escenarios/${id}`, "DELETE")
+    alert("Escenario eliminado exitosamente")
+    await loadEscenarios()
   } catch (error) {
-    alert("Error al eliminar el escenario: " + error.message);
+    alert("Error al eliminar el escenario: " + error.message)
   }
 }
 
@@ -1206,12 +1206,12 @@ async function deleteSprite(spriteId) {
   }
   try {
     // La llamada a apiRequest se hace con el método como un argumento separado
-    await apiRequest(`/sprites/${spriteId}`, "DELETE");
-    alert("Sprite eliminado exitosamente");
-    loadSprites();
+    await apiRequest(`/sprites/${spriteId}`, "DELETE")
+    alert("Sprite eliminado exitosamente")
+    loadSprites()
   } catch (error) {
-    console.error("Error al eliminar sprite:", error);
-    alert("Error al eliminar el sprite: " + error.message);
+    console.error("Error al eliminar sprite:", error)
+    alert("Error al eliminar el sprite: " + error.message)
   }
 }
 
@@ -1239,18 +1239,18 @@ async function deleteUsuario(id) {
 
 async function deleteRuletaTema(temaId) {
   try {
-    await apiRequest(`/ruleta/temas/${temaId}`, "DELETE");
-    alert("Tema eliminado exitosamente");
-    loadRuletaTemas(); // Recargar la lista de temas
+    await apiRequest(`/ruleta/temas/${temaId}`, "DELETE")
+    alert("Tema eliminado exitosamente")
+    loadRuletaTemas() // Recargar la lista de temas
   } catch (error) {
-    console.error("Error al eliminar tema:", error);
-    alert("Error al eliminar el tema: " + error.message);
+    console.error("Error al eliminar tema:", error)
+    alert("Error al eliminar el tema: " + error.message)
   }
 }
 async function deleteRuletaPregunta(id) {
   if (confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) {
     try {
-      await apiRequest(`/ruleta/preguntas/${id}`,"DELETE")
+      await apiRequest(`/ruleta/preguntas/${id}`, "DELETE")
       loadRuletaPreguntas()
     } catch (error) {
       alert("Error: " + error.message)
@@ -1361,24 +1361,24 @@ function initializeColliderEditor(objetoId, existingColliders, escenarioId) {
   })
 
   saveBtn.addEventListener("click", async () => {
-    try {
-      const pointsData = points.map((point, index) => ({
-        punto_x: point.x,
-        punto_y: point.y,
-        indice: index,
-      }));
- 
-      // Corregido: Separar el método 'POST' y los datos en argumentos separados
-      await apiRequest(`/objetos/${objetoId}/colliders/batch`, "POST", {
-        points: pointsData
-      });
- 
-      alert("Colliders guardados exitosamente!");
-      manageObjects(escenarioId, "Escenario");
-    } catch (error) {
-      alert("Error al guardar colliders: " + error.message);
-    }
-});
+    try {
+      const pointsData = points.map((point, index) => ({
+        punto_x: point.x,
+        punto_y: point.y,
+        indice: index,
+      }))
+
+      // Corregido: Separar el método 'POST' y los datos en argumentos separados
+      await apiRequest(`/objetos/${objetoId}/colliders/batch`, "POST", {
+        points: pointsData,
+      })
+
+      alert("Colliders guardados exitosamente!")
+      manageObjects(escenarioId, "Escenario")
+    } catch (error) {
+      alert("Error al guardar colliders: " + error.message)
+    }
+  })
 
   function updateDisplay() {
     // Update point count
@@ -1851,92 +1851,107 @@ function showMessage(message, type = "info") {
     messageContainer.style.display = "none"
   }, 3000)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+document.addEventListener("DOMContentLoaded", () => {
+  const loginForm = document.getElementById("loginForm")
+  const loginContainer = document.getElementById("loginContainer")
+  const appContainer = document.getElementById("appContainer")
+  const logoutBtn = document.getElementById("logoutBtn")
+  const loginError = document.getElementById("loginError")
+
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", () => {
+      if (window.innerWidth <= 1024) {
+        closeSidebar()
+      }
+    })
+  })
+
+  document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
+    toggle.addEventListener("click", (e) => {
+      e.preventDefault()
+      const submenuId = toggle.dataset.submenu + "-submenu"
+      const submenu = document.getElementById(submenuId)
+      const arrow = toggle.querySelector(".submenu-arrow")
+
+      if (submenu.style.display === "block") {
+        submenu.style.display = "none"
+        arrow.style.transform = "rotate(0deg)"
+        toggle.classList.remove("active")
+      } else {
+        submenu.style.display = "block"
+        arrow.style.transform = "rotate(90deg)"
+        toggle.classList.add("active")
+      }
+    })
+  })
+
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      if (!item.classList.contains("submenu-toggle")) {
+        switchTabFn(e.target.closest(".nav-item").dataset.tab)
+      }
+    })
+  })
+
+  // Add event listener for modal close button
+  document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("close") || e.target.innerHTML === "&times;") {
+      closeModal()
+    }
+  })
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault()
+      const correo = document.getElementById("correo").value
+      const contrasena = document.getElementById("contrasena").value
+
+      if (correo === "admin@minijuegos.com" && contrasena === "admin123") {
+        currentUser = { correo, esAdmin: true }
+        loginContainer.style.display = "none"
+        appContainer.style.display = "flex"
+        initializeApp()
+      } else if (correo === "editor@minijuegos.com" && contrasena === "editor123") {
+        currentUser = { correo, esAdmin: false }
+        loginContainer.style.display = "none"
+        appContainer.style.display = "flex"
+        initializeApp()
+      } else {
+        loginError.textContent = "Credenciales incorrectas"
+      }
+    })
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      currentUser = null
+      appContainer.style.display = "none"
+      loginContainer.style.display = "flex"
+      loginError.textContent = ""
+    })
+  }
+
+  function initializeApp() {
+    updateUIForUserRole()
+    loadPaises()
+    loadPreguntas()
+    loadEscenarios()
+    loadSprites()
+    loadRuletaTemas()
+    loadRuletaPreguntas()
+    loadUsuarios()
+    loadLogs()
+    feather.replace()
+  }
+
+  function updateUIForUserRole() {
+    const adminOnlyElements = document.querySelectorAll(".admin-only")
+    adminOnlyElements.forEach((element) => {
+      if (currentUser && currentUser.esAdmin) {
+        element.style.display = ""
+      } else {
+        element.style.display = "none"
+      }
+    })
+  }
+})

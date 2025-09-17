@@ -46,24 +46,33 @@
                     </button>
                     <button class="nav-item" data-tab="preguntas">
                         <i data-feather="help-circle"></i>
-                        <span>Preguntas</span>
+                        <span>Genfy Pregunta</span>
                     </button>
                     <button class="nav-item" data-tab="escenarios">
                         <i data-feather="image"></i>
-                        <span>Escenarios</span>
+                        <span>Genfy Encuentra</span>
                     </button>
                     <button class="nav-item" data-tab="sprites">
                         <i data-feather="package"></i>
-                        <span>Sprites</span>
+                        <span>Mision Genfy</span>
                     </button>
-                    <button class="nav-item" data-tab="ruleta-temas">
-                        <i data-feather="target"></i>
-                        <span>Temas Ruleta</span>
-                    </button>
-                    <button class="nav-item" data-tab="ruleta-preguntas">
-                        <i data-feather="rotate-cw"></i>
-                        <span>Preguntas Ruleta</span>
-                    </button>
+                    <div class="nav-submenu">
+                        <button class="nav-item submenu-toggle" data-submenu="rueda-genfy">
+                            <i data-feather="rotate-cw"></i>
+                            <span>La Rueda de Genfy</span>
+                            <i data-feather="chevron-right" class="submenu-arrow"></i>
+                        </button>
+                        <div class="submenu-items" id="rueda-genfy-submenu">
+                            <button class="nav-item submenu-item" data-tab="ruleta-temas">
+                                <i data-feather="target"></i>
+                                <span>Temas</span>
+                            </button>
+                            <button class="nav-item submenu-item" data-tab="ruleta-preguntas">
+                                <i data-feather="help-circle"></i>
+                                <span>Preguntas</span>
+                            </button>
+                        </div>
+                    </div>
                     <button class="nav-item admin-only" data-tab="usuarios">
                         <i data-feather="users"></i>
                         <span>Usuarios</span>
@@ -317,7 +326,6 @@
         </div>
     </div>
 
-    <!-- Added collider container for object collision editing -->
     <div id="colliderContainer"
         style="display: none; position: fixed; top: 50px; left: 50px; z-index: 1001; background: white; border: 2px solid #333; padding: 10px; max-width: 80%; max-height: 80%; overflow: auto;">
         <div style="margin-bottom: 10px;">
