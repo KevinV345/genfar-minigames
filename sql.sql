@@ -6,7 +6,9 @@
 -- Tiempo de generación: 17-09-2025 a las 21:47:43
 -- Versión del servidor: 9.1.0
 -- Versión de PHP: 8.3.14
-
+drop database if exists minijuegos;
+CREATE database minijuegos;
+use minijuegos;
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
