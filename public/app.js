@@ -94,7 +94,6 @@ function setupEventListeners() {
   document.getElementById("addUsuarioBtn")?.addEventListener("click", () => showUsuarioForm())
   document.getElementById("addRuletaTemaBtn")?.addEventListener("click", () => showRuletaTemaForm())
   document.getElementById("addRuletaPreguntaBtn")?.addEventListener("click", () => showRuletaPreguntaForm())
-  document.getElementById("addSpriteBtn")?.addEventListener("click", () => showSpriteForm())
   document.getElementById("manageTerapiasBtn")?.addEventListener("click", () => showTerapiasSection())
   document.getElementById("addTerapiaBtn")?.addEventListener("click", () => showTerapiaForm())
   document.getElementById("backToSpritesBtn")?.addEventListener("click", () => hideTerapiasSection())
@@ -194,10 +193,11 @@ function switchTab(tabName) {
       loadPaisesForFilter("paisFilterSprites")
     },
     "ruleta-temas": loadRuletaTemas,
-    "ruleta-preguntas": () => {
-      loadRuletaPreguntas()
-      loadTemasForFilter()
-      loadPaisesForFilter("paisFilterRuleta")
+    "ruleta-preguntas": async () => {
+      await loadRuletaTemas(); // Agrega esta línea para cargar los temas primero.
+      loadRuletaPreguntas();
+      loadTemasForFilter();
+      loadPaisesForFilter("paisFilterRuleta");
     },
     usuarios: loadUsuarios,
     logs: loadLogs,
@@ -208,19 +208,43 @@ function switchTab(tabName) {
 }
 
 // --- API HELPER ---
-async function apiRequest(endpoint, options = {}) {
+async function apiRequest(endpoint, method = "GET", body = null, isFormData = false) {
   const config = {
+    method,
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${authToken}`,
     },
-    ...options,
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, config)
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || "Error en la petición")
-  return data
+  if (body) {
+    if (isFormData) {
+      config.body = body
+    } else {
+      config.headers["Content-Type"] = "application/json"
+      config.body = JSON.stringify(body)
+    }
+  }
+
+  try {
+    console.log("[v0] Making API request to:", `${API_BASE}${endpoint}`)
+    console.log("[v0] Method:", method)
+    console.log("[v0] Body:", isFormData ? "FormData" : body)
+
+    const response = await fetch(`${API_BASE}${endpoint}`, config)
+
+    if (!response.ok) {
+      console.log("[v0] Response not OK:", response.status, response.statusText)
+      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+      throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    console.log("[v0] API request successful")
+    return data
+  } catch (error) {
+    console.error("[v0] API request failed:", error)
+    throw error
+  }
 }
 
 // --- DATA LOADING & RENDERING ---
@@ -233,6 +257,14 @@ async function loadPaises() {
     <tr>
       <td>${pais.id}</td>
       <td>${pais.nombre}</td>
+      <td class="admin-only">
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+          <span class="badge ${pais.genfy_pregunta_visible ? "badge-success" : "badge-danger"}" title="Genfy Pregunta">GP</span>
+          <span class="badge ${pais.genfy_encuentra_visible ? "badge-success" : "badge-danger"}" title="Genfy Encuentra">GE</span>
+          <span class="badge ${pais.mision_genfy_visible ? "badge-success" : "badge-danger"}" title="Misión Genfy">MG</span>
+          <span class="badge ${pais.ruleta_visible ? "badge-success" : "badge-danger"}" title="Ruleta">R</span>
+        </div>
+      </td>
       <td class="admin-only">
         <button class="btn btn-warning btn-small" onclick="editPais(${pais.id})">Editar</button>
         <button class="btn btn-danger btn-small" onclick="deletePais(${pais.id})">Eliminar</button>
@@ -269,14 +301,102 @@ function renderPreguntasTable(preguntas) {
 }
 
 async function loadEscenarios() {
-  currentData.escenarios = await apiRequest("/escenarios")
-  const escenariosConObjetos = await Promise.all(
-    currentData.escenarios.map(async (esc) => {
-      const objetos = await apiRequest(`/escenarios/${esc.id}/objetos`)
-      return { ...esc, objetosCount: objetos.length }
-    }),
-  )
-  renderEscenariosTable(escenariosConObjetos)
+  try {
+    console.log("[v0] Loading scenarios...")
+    currentData.escenarios = await apiRequest("/escenarios")
+    console.log("[v0] Escenarios loaded:", currentData.escenarios.length)
+
+    const escenariosConObjetos = await Promise.all(
+      currentData.escenarios.map(async (esc) => {
+        try {
+          const objetos = await apiRequest(`/escenarios/${esc.id}/objetos`)
+          return { ...esc, objetosCount: objetos.length }
+        } catch (error) {
+          console.error(`[v0] Error loading objects for scenario ${esc.id}:`, error)
+          return { ...esc, objetosCount: 0 }
+        }
+      }),
+    )
+    renderEscenariosTable(escenariosConObjetos)
+  } catch (error) {
+    console.error("[v0] Error loading escenarios:", error)
+    alert("Error al cargar escenarios: " + error.message)
+  }
+}
+
+function showEscenarioForm(escenario = null) {
+  const isEdit = !!escenario
+  const title = isEdit ? "Editar Escenario" : "Agregar Escenario"
+  const selectedPaises = isEdit && escenario.paises_ids ? escenario.paises_ids.split(",") : []
+
+  const paisesOptions = currentData.paises
+    .map(
+      (pais) =>
+        `<option value="${pais.id}" ${selectedPaises.includes(String(pais.id)) ? "selected" : ""}>${pais.nombre}</option>`,
+    )
+    .join("")
+
+  const content = `
+    <form id="escenarioForm">
+      <div class="form-group">
+        <label for="escenarioPaises">País/Países:</label>
+        <select id="escenarioPaises" multiple required>${paisesOptions}</select>
+        <small>Mantén Ctrl (o Cmd en Mac) para seleccionar varios.</small>
+      </div>
+      <div class="form-group">
+        <label for="imagenFondo">Imagen de Fondo:</label>
+        <input type="file" id="imagenFondo" accept="image/*" ${!isEdit ? "required" : ""}>
+        ${isEdit ? `<p class="current-image">Imagen actual: <img src="${escenario.imagen_fondo}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
+      </div>
+    </form>
+  `
+  showModal(title, content)
+
+  document.getElementById("escenarioForm").onsubmit = async (e) => {
+    e.preventDefault()
+
+    const selectedPaisesArray = Array.from(document.getElementById("escenarioPaises").selectedOptions).map(
+      (option) => option.value,
+    )
+    const fileInput = document.getElementById("imagenFondo")
+
+    try {
+      let requestData
+      let isFormData = false
+
+      if (fileInput.files[0]) {
+        // If there's a new file, use FormData
+        const formData = new FormData()
+        formData.append("paises_ids", JSON.stringify(selectedPaisesArray))
+        formData.append("imagen", fileInput.files[0])
+        requestData = formData
+        isFormData = true
+      } else {
+        // If no new file, use JSON
+        requestData = {
+          paises_ids: selectedPaisesArray,
+          imagen_fondo: isEdit ? escenario.imagen_fondo : null,
+        }
+      }
+
+      if (isEdit) {
+        await apiRequest(`/escenarios/${escenario.id}`, "PUT", requestData, isFormData)
+      } else {
+        await apiRequest("/escenarios", "POST", requestData, isFormData)
+      }
+
+      closeModal()
+      await loadEscenarios()
+      alert("Escenario " + (isEdit ? "actualizado" : "creado") + " exitosamente")
+    } catch (error) {
+      console.error("[v0] Error in escenario form:", error)
+      alert("Error: " + error.message)
+    }
+  }
 }
 
 function renderEscenariosTable(scenarios) {
@@ -289,7 +409,10 @@ function renderEscenariosTable(scenarios) {
       <td>${esc.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td><img src="${esc.imagen_fondo}" alt="Fondo" style="width: 50px; height: auto;"></td>
       <td>
-        <span class="badge">${esc.objetosCount}</span>
+        ${esc.enlace ? `<a href="${esc.enlace}" target="_blank" class="btn btn-small btn-secondary">Ver Enlace</a>` : "<em>Sin enlace</em>"}
+      </td>
+      <td>
+        <span class="badge">${esc.objetosCount || 0}</span>
         <button class="btn btn-small btn-primary" onclick="manageObjects(${esc.id}, '${esc.paises_nombres || "Escenario"}')">
           Gestionar
         </button>
@@ -302,6 +425,217 @@ function renderEscenariosTable(scenarios) {
   `,
     )
     .join("")
+}
+
+// --- OBJECT MANAGEMENT FUNCTIONALITY ---
+async function manageObjects(escenarioId, escenarioName) {
+  try {
+    const objetos = await apiRequest(`/escenarios/${escenarioId}/objetos`)
+
+    const content = `
+      <div class="objects-manager">
+        <h4>Objetos del Escenario: ${escenarioName}</h4>
+        <button class="btn btn-primary btn-small" onclick="showAddObjectForm(${escenarioId})">Agregar Objeto</button>
+        <div class="objects-list">
+          ${objetos
+            .map(
+              (obj) => `
+            <div class="object-item">
+              <img src="${obj.imagen_objetivo}" style="max-width: 50px; max-height: 50px;">
+              <span>Orden: ${obj.orden}</span>
+              <button class="btn btn-warning btn-small" onclick="editObject(${obj.id})">Editar</button>
+              <button class="btn btn-danger btn-small" onclick="deleteObject(${obj.id}, ${escenarioId})">Eliminar</button>
+              <button class="btn btn-info btn-small" onclick="editObjectColliders(${obj.id}, ${escenarioId})">Colliders</button>
+            </div>
+          `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `
+
+    showModal("Gestión de Objetos", content)
+  } catch (error) {
+    alert("Error: " + error.message)
+  }
+}
+
+function showAddObjectForm(escenarioId) {
+  const content = `
+    <form id="addObjectForm" onsubmit="addObjectToScenario(event, ${escenarioId})">
+      <div class="form-group">
+        <label for="objectImage">Imagen del Objeto:</label>
+        <input type="file" id="objectImage" accept="image/*" required>
+      </div>
+      <div class="form-group">
+        <label for="objectUrl">Url:</label>
+        <input type="url" id="objectUrl">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Agregar Objeto</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      </div>
+    </form>
+  `
+
+  showModal("Agregar Objeto", content)
+}
+
+// --- ADD OBJECT FUNCTIONALITY ---
+async function addObjectToScenario(event, escenarioId) {
+  event.preventDefault()
+
+  const imageInput = document.getElementById("objectImage")
+  const UrlInput = document.getElementById("objectUrl")
+
+  if (!imageInput || !UrlInput) {
+    alert("Error: No se encontraron los campos del formulario")
+    return
+  }
+
+  if (!imageInput.files || !imageInput.files[0]) {
+    alert("Error: Por favor selecciona una imagen")
+    return
+  }
+
+  const formData = new FormData()
+  formData.append("escenario_id", escenarioId)
+  formData.append("imagen_objetivo", imageInput.files[0])
+  formData.append("Url", UrlInput.value)
+
+  try {
+    const response = await fetch(`${API_BASE}/escenarios/${escenarioId}/objetos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: formData,
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+
+    closeModal()
+    const escenarios = await apiRequest("/escenarios")
+    const escenario = escenarios.find((e) => e.id === escenarioId)
+    if (escenario) {
+      manageObjects(escenarioId, escenario.paises_nombres || "Escenario")
+    }
+  } catch (error) {
+    alert("Error al agregar objeto: " + error.message)
+  }
+}
+
+// --- OBJECT EDIT FUNCTIONS ---
+async function editObject(id) {
+  try {
+    const objeto = await apiRequest(`/objetos/${id}`)
+    if (objeto) showObjectForm(objeto)
+  } catch (error) {
+    console.error("Error loading object:", error)
+    alert("Error al cargar el objeto")
+  }
+}
+
+function showObjectForm(objeto = null) {
+  const isEdit = objeto !== null
+  const title = isEdit ? "Editar Objeto" : "Agregar Objeto"
+
+  const content = `
+    <form id="objectForm">
+      <div class="form-group">
+        <label for="objectImage">Imagen del Objeto:</label>
+        <input type="file" id="objectImage" accept="image/*" ${!isEdit ? "required" : ""}>
+        ${isEdit ? `<p>Imagen actual: <img src="${objeto.imagen_objetivo}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
+      </div>
+      <div class="form-group">
+        <label for="objectOrder">Url:</label>
+        <input type="url" id="objectOrder" value="${isEdit ? objeto.Url : ""}" required>
+      </div>
+      <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Agregar"} Objeto</button>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("objectForm").onsubmit = async (e) => {
+    e.preventDefault()
+
+    if (isEdit) {
+      await updateObject(objeto.id)
+    } else {
+      // This would be called from showAddObjectForm with escenarioId
+      console.error("showObjectForm called without escenarioId for new object")
+    }
+  }
+}
+
+async function updateObject(objectId) {
+  const imageFile = document.getElementById("objectImage").files[0]
+  const Url = document.getElementById("objectOrder").value
+
+  if (!Url) {
+    alert("Por favor complete todos los campos requeridos")
+    return
+  }
+
+  try {
+    let response
+
+    if (imageFile) {
+      // If there's a new image, use FormData for file upload
+      const formData = new FormData()
+      formData.append("imagen_objetivo", imageFile)
+      formData.append("Url", Url)
+
+      response = await fetch(`${API_BASE}/objetos/${objectId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: formData,
+      })
+    } else {
+      // If no new image, get current object data and send JSON
+      const currentObject = await apiRequest(`/objetos/${objectId}`)
+      response = await fetch(`${API_BASE}/objetos/${objectId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          imagen_objetivo: currentObject.imagen_objetivo,
+          Url,
+        }),
+      })
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || "Error en la petición")
+    }
+
+    alert("Objeto actualizado exitosamente")
+    closeModal()
+    // Refresh the current view if we're in objects management
+    if (currentView === "escenarios") {
+      loadEscenarios()
+    }
+  } catch (error) {
+    console.error("Error updating object:", error)
+    alert("Error al actualizar el objeto: " + error.message)
+  }
+}
+async function deleteObject(objectId, escenarioId) {
+  if (!confirm("¿Estás seguro de que quieres eliminar este objeto?")) {
+    return
+  }
+  try {
+    await apiRequest(`/objetos/${objectId}`, "DELETE")
+    alert("Objeto eliminado exitosamente")
+    await manageObjects(escenarioId, "Escenario") // Usa manageObjects para recarregar
+  } catch (error) {
+    console.error("Error al eliminar objeto:", error)
+    alert("Error al eliminar el objeto")
+  }
 }
 
 async function loadSprites() {
@@ -444,13 +778,12 @@ function showTerapiaForm() {
 }
 
 async function deleteTerapia(id) {
-  if (confirm("¿Estás seguro de que quieres eliminar esta asociación de terapia?")) {
-    try {
-      await apiRequest(`/terapias/${id}`, { method: "DELETE" })
-      loadTerapias()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
+  try {
+    await apiRequest(`/terapias/${id}`, "DELETE")
+    await loadTerapias()
+    showMessage("Terapia eliminada exitosamente", "success")
+  } catch (error) {
+    showMessage(`Error al eliminar terapia: ${error.message}`, "error")
   }
 }
 
@@ -464,6 +797,9 @@ function renderSpritesTable(sprites) {
       <td>${s.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td>${s.tipo}</td>
       <td><img src="${s.imagen_url}" alt="Sprite" style="max-width: 50px; max-height: 50px;"></td>
+      <td>
+        ${s.tipo === "medicamento" && s.enlace ? `<a href="${s.enlace}" target="_blank" class="btn btn-small btn-secondary">Ver Enlace</a>` : "<em>Sin enlace</em>"}
+      </td>
       <td class="admin-only">
         <button class="btn btn-warning btn-small" onclick="editSprite(${s.id})">Editar</button>
         <button class="btn btn-danger btn-small" onclick="deleteSprite(${s.id})">Eliminar</button>
@@ -554,7 +890,11 @@ function filterRuletaPreguntasByPais() {
   let filtered = currentData.ruletaPreguntas
 
   if (paisId) {
-    filtered = filtered.filter((p) => p.paises_ids && p.paises_ids.split(",").includes(paisId))
+    filtered = filtered.filter((p) => {
+      if (!p.paises_ids) return false
+      const paisesArray = p.paises_ids.split(",")
+      return paisesArray.includes(paisId)
+    })
   }
 
   if (temaId) {
@@ -647,82 +987,9 @@ function showPreguntaForm(pregunta = null) {
     const method = isEdit ? "PUT" : "POST"
 
     try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
+      await apiRequest(endpoint, method, data)
       closeModal()
       loadPreguntas()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
-  })
-}
-
-function showEscenarioForm(escenario = null) {
-  const isEdit = !!escenario
-  const title = isEdit ? "Editar Escenario" : "Agregar Escenario"
-  const selectedPaises = isEdit && escenario.paises_ids ? escenario.paises_ids.split(",") : []
-
-  const paisesOptions = currentData.paises
-    .map(
-      (pais) =>
-        `<option value="${pais.id}" ${selectedPaises.includes(String(pais.id)) ? "selected" : ""}>${pais.nombre}</option>`,
-    )
-    .join("")
-
-  const content = `
-    <form id="escenarioForm">
-      <div class="form-group">
-        <label for="escenarioPaises">País/Países:</label>
-        <select id="escenarioPaises" multiple required>${paisesOptions}</select>
-        <small>Mantén Ctrl (o Cmd en Mac) para seleccionar varios.</small>
-      </div>
-      <div class="form-group">
-        <label for="imagenFondo">Imagen de Fondo:</label>
-        <input type="file" id="imagenFondo" accept="image/*" ${!isEdit ? "required" : ""}>
-        ${isEdit ? `<p>Imagen actual: <img src="${escenario.imagen_fondo}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
-      </div>
-      <div class="form-buttons">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-      </div>
-    </form>
-  `
-  showModal(title, content)
-
-  document.getElementById("escenarioForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const selectedOptions = document.getElementById("escenarioPaises").selectedOptions
-    const paises_ids = Array.from(selectedOptions).map((opt) => opt.value)
-    const fileInput = document.getElementById("imagenFondo")
-
-    let imagen_fondo = isEdit ? escenario.imagen_fondo : null
-
-    if (fileInput.files[0]) {
-      const formData = new FormData()
-      formData.append("image", fileInput.files[0])
-
-      try {
-        const uploadResponse = await fetch(`${API_BASE}/upload`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${authToken}` },
-          body: formData,
-        })
-        const uploadData = await uploadResponse.json()
-        if (!uploadResponse.ok) throw new Error(uploadData.error)
-        imagen_fondo = uploadData.url
-      } catch (error) {
-        alert("Error al subir imagen: " + error.message)
-        return
-      }
-    }
-
-    const data = { paises_ids, imagen_fondo }
-    const endpoint = isEdit ? `/escenarios/${escenario.id}` : "/escenarios"
-    const method = isEdit ? "PUT" : "POST"
-
-    try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
-      closeModal()
-      loadEscenarios()
     } catch (error) {
       alert("Error: " + error.message)
     }
@@ -750,7 +1017,7 @@ function showSpriteForm(sprite = null) {
       </div>
       <div class="form-group">
         <label for="spriteTipo">Tipo:</label>
-        <select id="spriteTipo" required>
+        <select id="spriteTipo" required onchange="toggleEnlaceField()">
           <option value="medicamento" ${isEdit && sprite.tipo === "medicamento" ? "selected" : ""}>Medicamento</option>
           <option value="bacteria" ${isEdit && sprite.tipo === "bacteria" ? "selected" : ""}>Bacteria</option>
         </select>
@@ -758,7 +1025,12 @@ function showSpriteForm(sprite = null) {
       <div class="form-group">
         <label for="spriteImagen">Imagen:</label>
         <input type="file" id="spriteImagen" accept="image/*" ${!isEdit ? "required" : ""}>
-        ${isEdit ? `<p>Imagen actual: <img src="${sprite.imagen_url}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
+        ${isEdit ? `<p class="current-image">Imagen actual: <img src="${sprite.imagen_url}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
+      </div>
+      <div class="form-group" id="enlaceGroup" style="display: ${isEdit && sprite.tipo === "medicamento" ? "block" : isEdit ? "none" : "block"};">
+        <label for="spriteEnlace">Enlace (solo para medicamentos):</label>
+        <input type="url" id="spriteEnlace" value="${isEdit ? sprite.enlace || "" : ""}" placeholder="https://ejemplo.com">
+        <small>URL relacionada con este medicamento</small>
       </div>
       <div class="form-buttons">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -768,43 +1040,50 @@ function showSpriteForm(sprite = null) {
   `
   showModal(title, content)
 
-  document.getElementById("spriteForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const selectedOptions = document.getElementById("spritePaises").selectedOptions
-    const paises_ids = Array.from(selectedOptions).map((opt) => opt.value)
+  // Add toggle function for enlace field
+  window.toggleEnlaceField = () => {
     const tipo = document.getElementById("spriteTipo").value
-    const fileInput = document.getElementById("spriteImagen")
+    const enlaceGroup = document.getElementById("enlaceGroup")
+    enlaceGroup.style.display = tipo === "medicamento" ? "block" : "none"
+    if (tipo !== "medicamento") {
+      document.getElementById("spriteEnlace").value = ""
+    }
+  }
 
+  document.getElementById("spriteForm").onsubmit = async (e) => {
+    e.preventDefault()
     const formData = new FormData()
-    formData.append("paises_ids", paises_ids.join(","))
-    formData.append("tipo", tipo)
+    const selectedPaisesArray = Array.from(document.getElementById("spritePaises").selectedOptions).map(
+      (option) => option.value,
+    )
 
-    if (isEdit) {
+    formData.append("paises_ids", selectedPaisesArray.join(","))
+    formData.append("tipo", document.getElementById("spriteTipo").value)
+
+    const enlaceValue = document.getElementById("spriteEnlace").value
+    if (document.getElementById("spriteTipo").value === "medicamento" && enlaceValue) {
+      formData.append("enlace", enlaceValue)
+    }
+
+    const fileInput = document.getElementById("spriteImagen")
+    if (fileInput.files[0]) {
+      formData.append("imagen", fileInput.files[0])
+    } else if (isEdit) {
       formData.append("imagen_url", sprite.imagen_url)
     }
 
-    if (fileInput.files[0]) {
-      formData.append("imagen", fileInput.files[0])
-    }
-
-    const endpoint = isEdit ? `/sprites/${sprite.id}` : "/sprites"
-    const method = isEdit ? "PUT" : "POST"
-
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method,
-        headers: { Authorization: `Bearer ${authToken}` },
-        body: formData,
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-
+      if (isEdit) {
+        await apiRequest(`/sprites/${sprite.id}`, "PUT", formData, true)
+      } else {
+        await apiRequest("/sprites", "POST", formData, true)
+      }
       closeModal()
       loadSprites()
     } catch (error) {
       alert("Error: " + error.message)
     }
-  })
+  }
 }
 
 function showPaisForm(pais = null) {
@@ -814,437 +1093,93 @@ function showPaisForm(pais = null) {
   const content = `
     <form id="paisForm">
       <div class="form-group">
-        <label for="paisNombre">Nombre:</label>
+        <label for="paisNombre">Nombre del País:</label>
         <input type="text" id="paisNombre" value="${isEdit ? pais.nombre : ""}" required>
       </div>
-      <div class="form-buttons">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-      </div>
-    </form>
-  `
-  showModal(title, content)
-
-  document.getElementById("paisForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const data = { nombre: document.getElementById("paisNombre").value }
-    const endpoint = isEdit ? `/paises/${pais.id}` : "/paises"
-    const method = isEdit ? "PUT" : "POST"
-
-    try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
-      closeModal()
-      loadPaises()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
-  })
-}
-
-function showUsuarioForm(usuario = null) {
-  const isEdit = !!usuario
-  const title = isEdit ? "Editar Usuario" : "Agregar Usuario"
-
-  const content = `
-    <form id="usuarioForm">
+      
       <div class="form-group">
-        <label for="usuarioNombre">Nombre:</label>
-        <input type="text" id="usuarioNombre" value="${isEdit ? usuario.nombre : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="usuarioCorreo">Correo:</label>
-        <input type="email" id="usuarioCorreo" value="${isEdit ? usuario.correo : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="usuarioContrasena">Contraseña:</label>
-        <input type="password" id="usuarioContrasena" ${!isEdit ? "required" : ""}>
-        ${isEdit ? "<small>Dejar vacío para mantener la contraseña actual</small>" : ""}
-      </div>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="usuarioAdmin" ${isEdit && usuario.es_admin ? "checked" : ""}>
-          Administrador
-        </label>
-      </div>
-      <div class="form-buttons">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-      </div>
-    </form>
-  `
-  showModal(title, content)
-
-  document.getElementById("usuarioForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const data = {
-      nombre: document.getElementById("usuarioNombre").value,
-      correo: document.getElementById("usuarioCorreo").value,
-      es_admin: document.getElementById("usuarioAdmin").checked,
-    }
-
-    const contrasena = document.getElementById("usuarioContrasena").value
-    if (contrasena) data.contrasena = contrasena
-
-    const endpoint = isEdit ? `/usuarios/${usuario.id}` : "/usuarios"
-    const method = isEdit ? "PUT" : "POST"
-
-    try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
-      closeModal()
-      loadUsuarios()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
-  })
-}
-
-function showRuletaTemaForm(tema = null) {
-  const isEdit = !!tema
-  const title = isEdit ? "Editar Tema" : "Agregar Tema"
-
-  const content = `
-    <form id="ruletaTemaForm">
-      <div class="form-group">
-        <label for="temaNombre">Nombre:</label>
-        <input type="text" id="temaNombre" value="${isEdit ? tema.nombre : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="temaColor">Color:</label>
-        <input type="color" id="temaColor" value="${isEdit ? tema.color : "#3498db"}" required>
-      </div>
-      ${
-        isEdit
-          ? `
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="temaActivo" ${tema.activo ? "checked" : ""}>
-          Activo
-        </label>
-      </div>
-      `
-          : ""
-      }
-      <div class="form-buttons">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-      </div>
-    </form>
-  `
-  showModal(title, content)
-
-  document.getElementById("ruletaTemaForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const data = {
-      nombre: document.getElementById("temaNombre").value,
-      color: document.getElementById("temaColor").value,
-      activo: isEdit ? document.getElementById("temaActivo").checked : true,
-    }
-
-    const endpoint = isEdit ? `/ruleta/temas/${tema.id}` : "/ruleta/temas"
-    const method = isEdit ? "PUT" : "POST"
-
-    try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
-      closeModal()
-      loadRuletaTemas()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
-  })
-}
-
-function showRuletaPreguntaForm(pregunta = null) {
-  const isEdit = !!pregunta
-  const title = isEdit ? "Editar Pregunta de Ruleta" : "Agregar Pregunta de Ruleta"
-
-  const temasOptions = currentData.ruletaTemas
-    .map(
-      (tema) =>
-        `<option value="${tema.id}" ${isEdit && pregunta.tema_id == tema.id ? "selected" : ""}>${tema.nombre}</option>`,
-    )
-    .join("")
-
-  const selectedPaises = isEdit && pregunta.paises_ids ? pregunta.paises_ids.split(",") : []
-
-  const paisesOptions = currentData.paises
-    .map(
-      (pais) =>
-        `<option value="${pais.id}" ${selectedPaises.includes(String(pais.id)) ? "selected" : ""}>${pais.nombre}</option>`,
-    )
-    .join("")
-
-  const content = `
-    <form id="ruletaPreguntaForm">
-      <div class="form-group">
-        <label for="preguntaTema">Tema:</label>
-        <select id="preguntaTema" required>${temasOptions}</select>
-      </div>
-      <div class="form-group">
-        <label for="preguntaPaisesRuleta">Países:</label>
-        <select id="preguntaPaisesRuleta" multiple required style="height: 120px;">${paisesOptions}</select>
-        <small>Mantén Ctrl/Cmd presionado para seleccionar múltiples países</small>
-      </div>
-      <div class="form-group">
-        <label for="preguntaTextoRuleta">Pregunta:</label>
-        <textarea id="preguntaTextoRuleta" required>${isEdit ? pregunta.pregunta : ""}</textarea>
-      </div>
-      <div class="form-group">
-        <label for="respuestaCorrectaRuleta">Respuesta Correcta:</label>
-        <input type="text" id="respuestaCorrectaRuleta" value="${isEdit ? pregunta.respuesta_correcta : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="respuesta1Ruleta">Respuesta 1:</label>
-        <input type="text" id="respuesta1Ruleta" value="${isEdit ? pregunta.respuesta_1 : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="respuesta2Ruleta">Respuesta 2:</label>
-        <input type="text" id="respuesta2Ruleta" value="${isEdit ? pregunta.respuesta_2 : ""}" required>
-      </div>
-      <div class="form-group">
-        <label for="respuesta3Ruleta">Respuesta 3:</label>
-        <input type="text" id="respuesta3Ruleta" value="${isEdit ? pregunta.respuesta_3 : ""}" required>
-      </div>
-      ${
-        isEdit
-          ? `
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="preguntaActiva" ${pregunta.activa ? "checked" : ""}>
-          Activa
-        </label>
-      </div>
-      `
-          : ""
-      }
-      <div class="form-buttons">
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
-      </div>
-    </form>
-  `
-  showModal(title, content)
-
-  document.getElementById("ruletaPreguntaForm").addEventListener("submit", async (e) => {
-    e.preventDefault()
-    const selectedOptions = document.getElementById("preguntaPaisesRuleta").selectedOptions
-    const paisesSeleccionados = Array.from(selectedOptions).map((opt) => opt.value)
-
-    const data = {
-      tema_id: document.getElementById("preguntaTema").value,
-      pregunta: document.getElementById("preguntaTextoRuleta").value,
-      respuesta_correcta: document.getElementById("respuestaCorrectaRuleta").value,
-      respuesta_1: document.getElementById("respuesta1Ruleta").value,
-      respuesta_2: document.getElementById("respuesta2Ruleta").value,
-      respuesta_3: document.getElementById("respuesta3Ruleta").value,
-      activa: isEdit ? document.getElementById("preguntaActiva").checked : true,
-      paises_ids: paisesSeleccionados,
-    }
-
-    const endpoint = isEdit ? `/ruleta/preguntas/${pregunta.id}` : "/ruleta/preguntas"
-    const method = isEdit ? "PUT" : "POST"
-
-    try {
-      await apiRequest(endpoint, { method, body: JSON.stringify(data) })
-      closeModal()
-      loadRuletaPreguntas()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
-  })
-}
-
-// --- RULETA FUNCTIONS ---
-async function loadRuletaTemas() {
-  currentData.ruletaTemas = await apiRequest("/ruleta/temas")
-  const tbody = document.querySelector("#ruletaTemasTable tbody")
-  tbody.innerHTML = currentData.ruletaTemas
-    .map(
-      (tema) => `
-    <tr>
-      <td>${tema.id}</td>
-      <td>${tema.nombre}</td>
-      <td><span class="color-badge" style="background-color: ${tema.color};">${tema.color}</span></td>
-      <td>${tema.activo ? "Activo" : "Inactivo"}</td>
-      <td class="admin-only">
-        <button class="btn btn-warning btn-small" onclick="editRuletaTema(${tema.id})">Editar</button>
-        <button class="btn btn-danger btn-small" onclick="deleteRuletaTema(${tema.id})">Eliminar</button>
-      </td>
-    </tr>
-  `,
-    )
-    .join("")
-}
-
-async function loadRuletaPreguntas() {
-  currentData.ruletaPreguntas = await apiRequest("/ruleta/preguntas")
-  renderRuletaPreguntasTable(currentData.ruletaPreguntas)
-}
-
-function renderRuletaPreguntasTable(preguntas) {
-  const tbody = document.querySelector("#ruletaPreguntasTable tbody")
-  tbody.innerHTML = preguntas
-    .map(
-      (p) => `
-    <tr>
-      <td>${p.id}</td>
-      <td><span class="color-badge" style="background-color: ${p.tema_color};">${p.tema_nombre}</span></td>
-      <td>${p.paises_nombres || "Sin países"}</td>
-      <td>${p.pregunta.substring(0, 50)}...</td>
-      <td>${p.respuesta_correcta}</td>
-      <td>${p.activa ? "Activa" : "Inactiva"}</td>
-      <td class="admin-only">
-        <button class="btn btn-warning btn-small" onclick="editRuletaPregunta(${p.id})">Editar</button>
-        <button class="btn btn-danger btn-small" onclick="deleteRuletaPregunta(${p.id})">Eliminar</button>
-      </td>
-    </tr>
-  `,
-    )
-    .join("")
-}
-
-function loadTemasForFilter() {
-  const select = document.getElementById("temaFilterRuleta")
-  select.innerHTML = '<option value="">Todos los temas</option>'
-  currentData.ruletaTemas.forEach((tema) => {
-    select.innerHTML += `<option value="${tema.id}">${tema.nombre}</option>`
-  })
-}
-
-// --- OBJECT MANAGEMENT FUNCTIONALITY ---
-async function manageObjects(escenarioId, escenarioName) {
-  try {
-    const objetos = await apiRequest(`/escenarios/${escenarioId}/objetos`)
-
-    const content = `
-      <div class="objects-manager">
-        <h4>Objetos del Escenario: ${escenarioName}</h4>
-        <button class="btn btn-primary btn-small" onclick="showAddObjectForm(${escenarioId})">Agregar Objeto</button>
-        <div class="objects-list">
-          ${objetos
-            .map(
-              (obj) => `
-            <div class="object-item">
-              <img src="${obj.imagen_objetivo}" style="max-width: 50px; max-height: 50px;">
-              <span>Orden: ${obj.orden}</span>
-              <button class="btn btn-warning btn-small" onclick="editObject(${obj.id})">Editar</button>
-              <button class="btn btn-danger btn-small" onclick="deleteObject(${obj.id})">Eliminar</button>
-              <button class="btn btn-info btn-small" onclick="editObjectColliders(${obj.id}, ${escenarioId})">Colliders</button>
-            </div>
-          `,
-            )
-            .join("")}
+        <label>Visibilidad de Minijuegos:</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+          <div class="checkbox-group">
+            <input type="checkbox" id="genfyPreguntaVisible" ${isEdit ? (pais.genfy_pregunta_visible ? "checked" : "") : "checked"}>
+            <label for="genfyPreguntaVisible">Genfy Pregunta</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="genfyEncuentraVisible" ${isEdit ? (pais.genfy_encuentra_visible ? "checked" : "") : "checked"}>
+            <label for="genfyEncuentraVisible">Genfy Encuentra</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="misionGenfyVisible" ${isEdit ? (pais.mision_genfy_visible ? "checked" : "") : "checked"}>
+            <label for="misionGenfyVisible">Misión Genfy</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="ruletaVisible" ${isEdit ? (pais.ruleta_visible ? "checked" : "") : "checked"}>
+            <label for="ruletaVisible">Ruleta</label>
+          </div>
         </div>
       </div>
-    `
-
-    showModal("Gestión de Objetos", content)
-  } catch (error) {
-    alert("Error: " + error.message)
-  }
-}
-
-function showAddObjectForm(escenarioId) {
-  const content = `
-    <form id="addObjectForm" onsubmit="addObjectToScenario(event, ${escenarioId})">
-      <div class="form-group">
-        <label for="objectImage">Imagen del Objeto:</label>
-        <input type="file" id="objectImage" accept="image/*" required>
-      </div>
-      <div class="form-group">
-        <label for="objectOrder">Orden:</label>
-        <input type="number" id="objectOrder" min="1" required>
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Agregar Objeto</button>
+      
+      <div class="form-buttons">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
       </div>
     </form>
   `
+  showModal(title, content)
 
-  showModal("Agregar Objeto", content)
-}
+  document.getElementById("paisForm").onsubmit = async (e) => {
+    e.preventDefault()
+    const formData = {
+      nombre: document.getElementById("paisNombre").value,
+      genfy_pregunta_visible: document.getElementById("genfyPreguntaVisible").checked,
+      genfy_encuentra_visible: document.getElementById("genfyEncuentraVisible").checked,
+      mision_genfy_visible: document.getElementById("misionGenfyVisible").checked,
+      ruleta_visible: document.getElementById("ruletaVisible").checked,
+    }
 
-// --- ADD OBJECT FUNCTIONALITY ---
-async function addObjectToScenario(event, escenarioId) {
-  event.preventDefault()
+    try {
+      if (isEdit) {
+        await apiRequest(`/paises/${pais.id}`, "PUT", formData)
+      } else {
+        await apiRequest("/paises", "POST", formData)
+      }
 
-  const imageInput = document.getElementById("objectImage")
-  const orderInput = document.getElementById("objectOrder")
-
-  if (!imageInput || !orderInput) {
-    alert("Error: No se encontraron los campos del formulario")
-    return
+      closeModal()
+      await loadPaises()
+      alert("País " + (isEdit ? "actualizado" : "creado") + " exitosamente")
+    } catch (error) {
+      console.error("[v0] Error in pais form:", error)
+      alert("Error: " + error.message)
+    }
   }
-
-  if (!imageInput.files || !imageInput.files[0]) {
-    alert("Error: Por favor selecciona una imagen")
-    return
-  }
-
-  const formData = new FormData()
-  formData.append("escenario_id", escenarioId)
-  formData.append("imagen_objetivo", imageInput.files[0])
-  formData.append("orden", orderInput.value)
-
-  try {
-    const response = await fetch(`${API_BASE}/escenarios/${escenarioId}/objetos`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${authToken}` },
-      body: formData,
-    })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error)
-
-    closeModal()
-    const escenarios = await apiRequest("/escenarios")
-    const escenario = escenarios.find((e) => e.id === escenarioId)
-    manageObjects(escenarioId, escenario ? escenario.imagen_fondo : "Escenario")
-  } catch (error) {
-    alert("Error: " + error.message)
-  }
-}
-
-// --- EDIT FUNCTIONS ---
-async function editPregunta(id) {
-  const pregunta = currentData.preguntas.find((p) => p.id === id)
-  if (pregunta) showPreguntaForm(pregunta)
-}
-
-async function editEscenario(id) {
-  const escenario = currentData.escenarios.find((e) => e.id === id)
-  if (escenario) showEscenarioForm(escenario)
-}
-
-async function editSprite(id) {
-  const sprite = currentData.sprites.find((s) => s.id === id)
-  if (sprite) showSpriteForm(sprite)
 }
 
 async function editPais(id) {
   const pais = currentData.paises.find((p) => p.id === id)
-  if (pais) showPaisForm(pais)
+  if (pais) {
+    showPaisForm(pais)
+  }
 }
 
-async function editUsuario(id) {
-  const usuario = currentData.usuarios.find((u) => u.id === id)
-  if (usuario) showUsuarioForm(usuario)
+async function editEscenario(id) {
+  const escenario = currentData.escenarios.find((e) => e.id === id)
+  if (escenario) {
+    showEscenarioForm(escenario)
+  }
 }
 
-async function editRuletaTema(id) {
-  const tema = currentData.ruletaTemas.find((t) => t.id === id)
-  if (tema) showRuletaTemaForm(tema)
-}
-
-async function editRuletaPregunta(id) {
-  const pregunta = currentData.ruletaPreguntas.find((p) => p.id === id)
-  if (pregunta) showRuletaPreguntaForm(pregunta)
+async function editSprite(id) {
+  const sprite = currentData.sprites.find((s) => s.id === id)
+  if (sprite) {
+    showSpriteForm(sprite)
+  }
 }
 
 // --- DELETE FUNCTIONS ---
 async function deletePregunta(id) {
   if (confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) {
     try {
-      await apiRequest(`/preguntas/${id}`, { method: "DELETE" })
+      await apiRequest(`/preguntas/${id}`, "DELETE")
       loadPreguntas()
     } catch (error) {
       alert("Error: " + error.message)
@@ -1253,31 +1188,37 @@ async function deletePregunta(id) {
 }
 
 async function deleteEscenario(id) {
-  if (confirm("¿Estás seguro de que quieres eliminar este escenario?")) {
-    try {
-      await apiRequest(`/escenarios/${id}`, { method: "DELETE" })
-      loadEscenarios()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
+  if (!confirm("¿Estás seguro de que quieres eliminar este escenario?")) {
+    return;
+  }
+  try {
+    await apiRequest(`/escenarios/${id}`, "DELETE");
+    alert("Escenario eliminado exitosamente");
+    await loadEscenarios();
+  } catch (error) {
+    alert("Error al eliminar el escenario: " + error.message);
   }
 }
 
-async function deleteSprite(id) {
-  if (confirm("¿Estás seguro de que quieres eliminar este sprite?")) {
-    try {
-      await apiRequest(`/sprites/${id}`, { method: "DELETE" })
-      loadSprites()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
+async function deleteSprite(spriteId) {
+  if (!confirm("¿Estás seguro de que quieres eliminar este sprite? Esto también eliminará las terapias asociadas.")) {
+    return
+  }
+  try {
+    // La llamada a apiRequest se hace con el método como un argumento separado
+    await apiRequest(`/sprites/${spriteId}`, "DELETE");
+    alert("Sprite eliminado exitosamente");
+    loadSprites();
+  } catch (error) {
+    console.error("Error al eliminar sprite:", error);
+    alert("Error al eliminar el sprite: " + error.message);
   }
 }
 
 async function deletePais(id) {
   if (confirm("¿Estás seguro de que quieres eliminar este país?")) {
     try {
-      await apiRequest(`/paises/${id}`, { method: "DELETE" })
+      await apiRequest(`/paises/${id}`, "DELETE")
       loadPaises()
     } catch (error) {
       alert("Error: " + error.message)
@@ -1296,21 +1237,20 @@ async function deleteUsuario(id) {
   }
 }
 
-async function deleteRuletaTema(id) {
-  if (confirm("¿Estás seguro de que quieres eliminar este tema?")) {
-    try {
-      await apiRequest(`/ruleta/temas/${id}`, { method: "DELETE" })
-      loadRuletaTemas()
-    } catch (error) {
-      alert("Error: " + error.message)
-    }
+async function deleteRuletaTema(temaId) {
+  try {
+    await apiRequest(`/ruleta/temas/${temaId}`, "DELETE");
+    alert("Tema eliminado exitosamente");
+    loadRuletaTemas(); // Recargar la lista de temas
+  } catch (error) {
+    console.error("Error al eliminar tema:", error);
+    alert("Error al eliminar el tema: " + error.message);
   }
 }
-
 async function deleteRuletaPregunta(id) {
   if (confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) {
     try {
-      await apiRequest(`/ruleta/preguntas/${id}`, { method: "DELETE" })
+      await apiRequest(`/ruleta/preguntas/${id}`,"DELETE")
       loadRuletaPreguntas()
     } catch (error) {
       alert("Error: " + error.message)
@@ -1421,24 +1361,24 @@ function initializeColliderEditor(objetoId, existingColliders, escenarioId) {
   })
 
   saveBtn.addEventListener("click", async () => {
-    try {
-      const pointsData = points.map((point, index) => ({
-        punto_x: point.x,
-        punto_y: point.y,
-        indice: index, // Use array index to ensure proper ordering
-      }))
-
-      await apiRequest(`/objetos/${objetoId}/colliders/batch`, {
-        method: "POST",
-        body: JSON.stringify({ points: pointsData }),
-      })
-
-      alert("Colliders guardados exitosamente!")
-      manageObjects(escenarioId, "Escenario")
-    } catch (error) {
-      alert("Error al guardar colliders: " + error.message)
-    }
-  })
+    try {
+      const pointsData = points.map((point, index) => ({
+        punto_x: point.x,
+        punto_y: point.y,
+        indice: index,
+      }));
+ 
+      // Corregido: Separar el método 'POST' y los datos en argumentos separados
+      await apiRequest(`/objetos/${objetoId}/colliders/batch`, "POST", {
+        points: pointsData
+      });
+ 
+      alert("Colliders guardados exitosamente!");
+      manageObjects(escenarioId, "Escenario");
+    } catch (error) {
+      alert("Error al guardar colliders: " + error.message);
+    }
+});
 
   function updateDisplay() {
     // Update point count
@@ -1489,129 +1429,6 @@ function initializeColliderEditor(objetoId, existingColliders, escenarioId) {
       pointEl.style.zIndex = "1000"
       container.appendChild(pointEl)
     })
-  }
-}
-
-// --- OBJECT EDIT FUNCTIONS ---
-async function editObject(id) {
-  try {
-    const objeto = await apiRequest(`/objetos/${id}`)
-    if (objeto) showObjectForm(objeto)
-  } catch (error) {
-    console.error("Error loading object:", error)
-    alert("Error al cargar el objeto")
-  }
-}
-
-function showObjectForm(objeto = null) {
-  const isEdit = objeto !== null
-  const title = isEdit ? "Editar Objeto" : "Agregar Objeto"
-
-  const content = `
-    <form id="objectForm">
-      <div class="form-group">
-        <label for="objectImage">Imagen del Objeto:</label>
-        <input type="file" id="objectImage" accept="image/*" ${!isEdit ? "required" : ""}>
-        ${isEdit ? `<p>Imagen actual: <img src="${objeto.imagen_objetivo}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
-      </div>
-      <div class="form-group">
-        <label for="objectOrder">Orden:</label>
-        <input type="number" id="objectOrder" value="${isEdit ? objeto.orden : ""}" required min="1">
-      </div>
-      <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Agregar"} Objeto</button>
-    </form>
-  `
-
-  showModal(title, content)
-
-  document.getElementById("objectForm").onsubmit = async (e) => {
-    e.preventDefault()
-
-    if (isEdit) {
-      await updateObject(objeto.id)
-    } else {
-      // This would be called from showAddObjectForm with escenarioId
-      console.error("showObjectForm called without escenarioId for new object")
-    }
-  }
-}
-
-async function updateObject(objectId) {
-  const imageFile = document.getElementById("objectImage").files[0]
-  const orden = document.getElementById("objectOrder").value
-
-  if (!orden) {
-    alert("Por favor complete todos los campos requeridos")
-    return
-  }
-
-  try {
-    let response
-
-    if (imageFile) {
-      // If there's a new image, use FormData for file upload
-      const formData = new FormData()
-      formData.append("imagen_objetivo", imageFile)
-      formData.append("orden", orden)
-
-      response = await fetch(`${API_BASE}/objetos/${objectId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: formData,
-      })
-    } else {
-      // If no new image, get current object data and send JSON
-      const currentObject = await apiRequest(`/objetos/${objectId}`)
-      response = await fetch(`${API_BASE}/objetos/${objectId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          imagen_objetivo: currentObject.imagen_objetivo,
-          orden: Number.parseInt(orden),
-        }),
-      })
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error || "Error en la petición")
-    }
-
-    alert("Objeto actualizado exitosamente")
-    closeModal()
-    // Refresh the current view if we're in objects management
-    if (currentView === "escenarios") {
-      loadEscenarios()
-    }
-  } catch (error) {
-    console.error("Error updating object:", error)
-    alert("Error al actualizar el objeto: " + error.message)
-  }
-}
-
-async function deleteObject(objectId) {
-  if (!confirm("¿Estás seguro de que quieres eliminar este objeto?")) {
-    return
-  }
-
-  try {
-    await apiRequest(`/objetos/${objectId}`, {
-      method: "DELETE",
-    })
-
-    alert("Objeto eliminado exitosamente")
-    // Refresh the current view
-    if (currentView === "escenarios") {
-      loadEscenarios()
-    }
-  } catch (error) {
-    console.error("Error deleting object:", error)
-    alert("Error al eliminar el objeto")
   }
 }
 
@@ -1687,3 +1504,439 @@ function renderTerapiasTable(terapias) {
     tbody.appendChild(row)
   })
 }
+
+// Event listeners
+document.addEventListener("DOMContentLoaded", () => {
+  // Add event listeners here
+  document.getElementById("addPaisBtn").onclick = () => showPaisForm()
+  document.getElementById("addEscenarioBtn").onclick = () => showEscenarioForm()
+  document.getElementById("addSpriteBtn").onclick = () => showSpriteForm()
+})
+
+// Additional functions for undeclared variables
+function showUsuarioForm(usuario = null) {
+  const isEdit = !!usuario
+  const title = isEdit ? "Editar Usuario" : "Agregar Usuario"
+
+  const content = `
+    <form id="usuarioForm">
+      <div class="form-group">
+        <label for="usuarioNombre">Nombre del Usuario:</label>
+        <input type="text" id="usuarioNombre" value="${isEdit ? usuario.nombre : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="usuarioCorreo">Correo del Usuario:</label>
+        <input type="email" id="usuarioCorreo" value="${isEdit ? usuario.correo : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="usuarioAdmin">Es Administrador:</label>
+        <input type="checkbox" id="usuarioAdmin" ${isEdit ? (usuario.es_admin ? "checked" : "") : ""}>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
+      </div>
+    </form>
+  `
+  showModal(title, content)
+
+  document.getElementById("usuarioForm").onsubmit = async (e) => {
+    e.preventDefault()
+    const formData = {
+      nombre: document.getElementById("usuarioNombre").value,
+      correo: document.getElementById("usuarioCorreo").value,
+      es_admin: document.getElementById("usuarioAdmin").checked,
+    }
+
+    try {
+      if (isEdit) {
+        await apiRequest(`/usuarios/${usuario.id}`, "PUT", formData)
+      } else {
+        await apiRequest("/usuarios", "POST", formData)
+      }
+      closeModal()
+      loadUsuarios()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  }
+}
+
+async function loadRuletaTemas() {
+  currentData.ruletaTemas = await apiRequest("/ruleta/temas")
+  renderRuletaTemasTable(currentData.ruletaTemas)
+}
+
+function renderRuletaTemasTable(temas) {
+  const tbody = document.querySelector("#ruletaTemasTable tbody")
+  tbody.innerHTML = temas
+    .map(
+      (tema) => `
+    <tr>
+      <td>${tema.id}</td>
+      <td>${tema.nombre}</td>
+      <td class="admin-only">
+        <button class="btn btn-warning btn-small" onclick="editRuletaTema(${tema.id})">Editar</button>
+        <button class="btn btn-danger btn-small" onclick="deleteRuletaTema(${tema.id})">Eliminar</button>
+      </td>
+    </tr>
+  `,
+    )
+    .join("")
+}
+
+async function loadRuletaPreguntas() {
+  currentData.ruletaPreguntas = await apiRequest("/ruleta/preguntas")
+  renderRuletaPreguntasTable(currentData.ruletaPreguntas)
+}
+
+function renderRuletaPreguntasTable(preguntas) {
+  const tbody = document.querySelector("#ruletaPreguntasTable tbody")
+  tbody.innerHTML = preguntas
+    .map(
+      (p) => `
+    <tr>
+      <td>${p.id}</td>
+      <td>${p.paises_nombres || "<em>Sin Asignar</em>"}</td>
+      <td>${p.pregunta.substring(0, 50)}...</td>
+      <td>${p.respuesta_correcta}</td>
+      <td class="admin-only">
+        <button class="btn btn-warning btn-small" onclick="editRuletaPregunta(${p.id})">Editar</button>
+        <button class="btn btn-danger btn-small" onclick="deleteRuletaPregunta(${p.id})">Eliminar</button>
+      </td>
+    </tr>
+  `,
+    )
+    .join("")
+}
+
+function loadTemasForFilter() {
+  const select = document.getElementById("temaFilterRuleta")
+  select.innerHTML = '<option value="">Todos los temas</option>'
+  currentData.ruletaTemas.forEach((tema) => {
+    select.innerHTML += `<option value="${tema.id}">${tema.nombre}</option>`
+  })
+}
+
+function editRuletaTema(id) {
+  const tema = currentData.ruletaTemas?.find((t) => t.id === id)
+  if (!tema) {
+    alert("Tema no encontrado")
+    return
+  }
+  showRuletaTemaForm(tema)
+}
+
+function editRuletaPregunta(id) {
+  const pregunta = currentData.ruletaPreguntas?.find((p) => p.id === id)
+  if (!pregunta) {
+    alert("Pregunta no encontrada")
+    return
+  }
+  showRuletaPreguntaForm(pregunta)
+}
+
+function showRuletaTemaForm(tema = null) {
+  const isEdit = !!tema
+  const title = isEdit ? "Editar Tema de Ruleta" : "Agregar Tema de Ruleta"
+
+  const content = `
+    <form id="ruletaTemaForm">
+      <div class="form-group">
+        <label for="temaNombre">Nombre del Tema:</label>
+        <input type="text" id="temaNombre" value="${isEdit ? tema.nombre : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="temaColor">Color:</label>
+        <input type="color" id="temaColor" value="${isEdit ? tema.color : "#3498db"}" required>
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="temaActivo" ${isEdit ? (tema.activo ? "checked" : "") : "checked"}>
+          <label for="temaActivo">Tema Activo</label>
+        </div>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
+      </div>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("ruletaTemaForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const nombre = document.getElementById("temaNombre").value
+    const color = document.getElementById("temaColor").value
+    const activo = document.getElementById("temaActivo").checked
+
+    try {
+      if (isEdit) {
+        await apiRequest(`/ruleta/temas/${tema.id}`, "PUT", { nombre, color, activo })
+      } else {
+        await apiRequest("/ruleta/temas", "POST", { nombre, color, activo })
+      }
+      closeModal()
+      loadRuletaTemas()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
+function showRuletaPreguntaForm(pregunta = null) {
+  const isEdit = !!pregunta
+  const title = isEdit ? "Editar Pregunta de Ruleta" : "Agregar Pregunta de Ruleta"
+
+  const paisesOptions = currentData.paises
+    .map((pais) => {
+      const isSelected = isEdit && pregunta.paises_ids && pregunta.paises_ids.split(",").includes(pais.id.toString())
+      return `<option value="${pais.id}" ${isSelected ? "selected" : ""}>${pais.nombre}</option>`
+    })
+    .join("")
+
+  const temasOptions = currentData.ruletaTemas
+    .map((tema) => {
+      const isSelected = isEdit && pregunta.tema_id === tema.id
+      return `<option value="${tema.id}" ${isSelected ? "selected" : ""}>${tema.nombre}</option>`
+    })
+    .join("")
+
+  const content = `
+    <form id="ruletaPreguntaForm">
+      <div class="form-group">
+        <label for="preguntaTema">Tema:</label>
+        <select id="preguntaTema" required>
+          <option value="">Seleccionar tema...</option>
+          ${temasOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="preguntaPaises">Países:</label>
+        <select id="preguntaPaises" multiple required>
+          ${paisesOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="preguntaTexto">Pregunta:</label>
+        <textarea id="preguntaTexto" required>${isEdit ? pregunta.pregunta : ""}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="respuestaCorrecta">Respuesta Correcta:</label>
+        <input type="text" id="respuestaCorrecta" value="${isEdit ? pregunta.respuesta_correcta : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta1">Respuesta Incorrecta 1:</label>
+        <input type="text" id="respuesta1" value="${isEdit ? pregunta.respuesta_1 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta2">Respuesta Incorrecta 2:</label>
+        <input type="text" id="respuesta2" value="${isEdit ? pregunta.respuesta_2 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="respuesta3">Respuesta Incorrecta 3:</label>
+        <input type="text" id="respuesta3" value="${isEdit ? pregunta.respuesta_3 : ""}" required>
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="preguntaActiva" ${isEdit ? (pregunta.activa ? "checked" : "") : "checked"}>
+          <label for="preguntaActiva">Pregunta Activa</label>
+        </div>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
+      </div>
+    </form>
+  `
+
+  showModal(title, content)
+
+  document.getElementById("ruletaPreguntaForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const tema_id = document.getElementById("preguntaTema").value
+    const paisesSelect = document.getElementById("preguntaPaises")
+    const paises_ids = Array.from(paisesSelect.selectedOptions).map((option) => Number.parseInt(option.value))
+    const preguntaTexto = document.getElementById("preguntaTexto").value
+    const respuesta_correcta = document.getElementById("respuestaCorrecta").value
+    const respuesta_1 = document.getElementById("respuesta1").value
+    const respuesta_2 = document.getElementById("respuesta2").value
+    const respuesta_3 = document.getElementById("respuesta3").value
+    const activa = document.getElementById("preguntaActiva").checked
+
+    try {
+      if (isEdit) {
+        await apiRequest(`/ruleta/preguntas/${pregunta.id}`, "PUT", {
+          tema_id: Number.parseInt(tema_id),
+          paises_ids,
+          pregunta: preguntaTexto,
+          respuesta_correcta,
+          respuesta_1,
+          respuesta_2,
+          respuesta_3,
+          activa,
+        })
+      } else {
+        await apiRequest("/ruleta/preguntas", "POST", {
+          tema_id: Number.parseInt(tema_id),
+          paises_ids,
+          pregunta: preguntaTexto,
+          respuesta_correcta,
+          respuesta_1,
+          respuesta_2,
+          respuesta_3,
+          activa,
+        })
+      }
+      closeModal()
+      loadRuletaPreguntas()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
+  })
+}
+
+async function editPregunta(id) {
+  const pregunta = currentData.preguntas.find((p) => p.id === id)
+  if (pregunta) {
+    showPreguntaForm(pregunta)
+  }
+}
+
+async function editUsuario(id) {
+  const usuario = currentData.usuarios.find((u) => u.id === id)
+  if (usuario) {
+    showUsuarioForm(usuario)
+  }
+}
+
+function showMessage(message, type = "info") {
+  // Create message container if it doesn't exist
+  let messageContainer = document.getElementById("messageContainer")
+  if (!messageContainer) {
+    messageContainer = document.createElement("div")
+    messageContainer.id = "messageContainer"
+    messageContainer.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      z-index: 9999;
+      display: none;
+      font-weight: 500;
+    `
+    document.body.appendChild(messageContainer)
+  }
+
+  messageContainer.textContent = message
+  messageContainer.className = `message ${type}`
+
+  // Set colors based on type
+  if (type === "success") {
+    messageContainer.style.backgroundColor = "#10b981"
+    messageContainer.style.color = "white"
+  } else if (type === "error") {
+    messageContainer.style.backgroundColor = "#ef4444"
+    messageContainer.style.color = "white"
+  } else {
+    messageContainer.style.backgroundColor = "#3b82f6"
+    messageContainer.style.color = "white"
+  }
+
+  messageContainer.style.display = "block"
+
+  setTimeout(() => {
+    messageContainer.style.display = "none"
+  }, 3000)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -261,7 +261,14 @@ app.delete("/api/usuarios/:id", auth(true), async (req, res) => {
 
 app.get("/api/paises", auth(), async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM paises ORDER BY nombre")
+    const [rows] = await pool.query(`
+      SELECT id, nombre, 
+             genfy_pregunta_visible, 
+             genfy_encuentra_visible, 
+             mision_genfy_visible, 
+             ruleta_visible 
+      FROM paises ORDER BY nombre
+    `)
     res.json(rows)
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
@@ -270,7 +277,17 @@ app.get("/api/paises", auth(), async (req, res) => {
 
 app.get("/api/paises/:id", auth(), async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM paises WHERE id=?", [req.params.id])
+    const [rows] = await pool.query(
+      `
+      SELECT id, nombre, 
+             genfy_pregunta_visible, 
+             genfy_encuentra_visible, 
+             mision_genfy_visible, 
+             ruleta_visible 
+      FROM paises WHERE id=?
+    `,
+      [req.params.id],
+    )
     if (!rows.length) return res.status(404).json({ error: "País no encontrado" })
     res.json(rows[0])
   } catch (error) {
@@ -280,8 +297,22 @@ app.get("/api/paises/:id", auth(), async (req, res) => {
 
 app.post("/api/paises", auth(true), async (req, res) => {
   try {
-    const { nombre } = req.body
-    const [result] = await pool.query("INSERT INTO paises (nombre) VALUES (?)", [nombre])
+    const {
+      nombre,
+      genfy_pregunta_visible = true,
+      genfy_encuentra_visible = true,
+      mision_genfy_visible = true,
+      ruleta_visible = true,
+    } = req.body
+
+    const [result] = await pool.query(
+      `
+      INSERT INTO paises (nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
+      VALUES (?, ?, ?, ?, ?)
+    `,
+      [nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
+    )
+
     const usuario = await getUserInfo(req.user.id)
     await logChange("agregó un nuevo país", `País: ${nombre} - Configuración general`, usuario)
     res.json({ mensaje: "País agregado", id: result.insertId })
@@ -292,8 +323,21 @@ app.post("/api/paises", auth(true), async (req, res) => {
 
 app.put("/api/paises/:id", auth(true), async (req, res) => {
   try {
-    const { nombre } = req.body
-    await pool.query("UPDATE paises SET nombre=? WHERE id=?", [nombre, req.params.id])
+    const { nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
+
+    await pool.query(
+      `
+      UPDATE paises SET 
+        nombre=?, 
+        genfy_pregunta_visible=?, 
+        genfy_encuentra_visible=?, 
+        mision_genfy_visible=?, 
+        ruleta_visible=? 
+      WHERE id=?
+    `,
+      [nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
+    )
+
     const usuario = await getUserInfo(req.user.id)
     await logChange("actualizó un país", `País: ${nombre} - Configuración general - ID: ${req.params.id}`, usuario)
     res.json({ mensaje: "País actualizado" })
@@ -320,7 +364,6 @@ app.delete("/api/paises/:id", auth(true), async (req, res) => {
   }
 })
 
-// MODIFICADO: Rutas de Preguntas para soportar múltiples países
 app.get("/api/preguntas", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -412,81 +455,187 @@ app.delete("/api/preguntas/:id", auth(true), async (req, res) => {
   }
 })
 
-// MODIFICADO: Rutas de Escenarios para soportar múltiples países
-app.get("/api/escenarios", async (req, res) => {
+
+
+
+
+
+app.post("/api/objetos/:objetoId/colliders/batch", auth(true), async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT e.*, 
-            GROUP_CONCAT(p.nombre SEPARATOR ', ') as paises_nombres,
-            GROUP_CONCAT(p.id SEPARATOR ',') as paises_ids
-       FROM genfy_encuentra_escenarios e 
-       LEFT JOIN genfy_encuentra_escenarios_paises ep ON e.id = ep.escenario_id
-       LEFT JOIN paises p ON ep.pais_id = p.id 
-       GROUP BY e.id
-       ORDER BY e.id DESC`,
-    )
-    res.json(rows)
+    const { objetoId } = req.params;
+    const { points } = req.body;
+
+    // Iniciar una transacción para asegurar la integridad de los datos
+    await pool.query("START TRANSACTION");
+
+    // Eliminar los colliders existentes para este objeto
+    await pool.query("DELETE FROM genfy_encuentra_colliders WHERE objeto_id = ?", [objetoId]);
+
+    // Insertar los nuevos puntos del collider
+    const insertQuery = "INSERT INTO genfy_encuentra_colliders (objeto_id, punto_x, punto_y, indice) VALUES (?, ?, ?, ?)";
+    for (const point of points) {
+      await pool.query(insertQuery, [objetoId, point.punto_x, point.punto_y, point.indice]);
+    }
+
+    // Confirmar la transacción
+    await pool.query("COMMIT");
+
+    const usuario = await getUserInfo(req.user.id);
+    await logChange("guardó colliders", `Objeto ID: ${objetoId}`, usuario);
+
+    res.json({ mensaje: "Colliders guardados exitosamente" });
+  } catch (error) {
+    // Revertir la transacción en caso de error
+    await pool.query("ROLLBACK");
+    console.error("Error al guardar colliders:", error);
+    res.status(500).json({ error: "Error del servidor al guardar los colliders" });
+  }
+});
+
+
+app.post("/api/ruleta/temas", auth(true), async (req, res) => {
+  try {
+    const { nombre, color } = req.body
+    const [result] = await pool.query("INSERT INTO ruleta_temas (nombre, color) VALUES (?,?)", [nombre, color])
+    res.json({ mensaje: "Tema creado", id: result.insertId })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
-
-app.post("/api/escenarios", auth(true), async (req, res) => {
+app.put("/api/ruleta/temas/:id", auth(true), async (req, res) => {
   try {
-    const { paises_ids, imagen_fondo } = req.body
-    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0 || !imagen_fondo) {
-      return res.status(400).json({ error: "Países e imagen de fondo son requeridos" })
-    }
-
-    const [result] = await pool.query("INSERT INTO genfy_encuentra_escenarios (imagen_fondo) VALUES (?)", [
-      imagen_fondo,
+    const { nombre, color, activo } = req.body
+    await pool.query("UPDATE ruleta_temas SET nombre=?, color=?, activo=? WHERE id=?", [
+      nombre,
+      color,
+      activo ? 1 : 0,
+      req.params.id,
     ])
-    const escenarioId = result.insertId
-    for (const paisId of paises_ids) {
-      await pool.query("INSERT INTO genfy_encuentra_escenarios_paises (escenario_id, pais_id) VALUES (?,?)", [
-        escenarioId,
-        paisId,
-      ])
-    }
-
-    res.json({ mensaje: "Escenario creado", id: escenarioId })
+    res.json({ mensaje: "Tema actualizado" })
   } catch (error) {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
 
-app.put("/api/escenarios/:id", auth(true), async (req, res) => {
+
+// Obtener un objeto por su ID
+app.get("/api/objetos/:id", async (req, res) => {
   try {
-    const escenarioId = req.params.id
-    const { paises_ids, imagen_fondo } = req.body
-    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0 || !imagen_fondo) {
-      return res.status(400).json({ error: "Países e imagen de fondo son requeridos" })
-    }
-    await pool.query("UPDATE genfy_encuentra_escenarios SET imagen_fondo=? WHERE id=?", [imagen_fondo, escenarioId])
-    await pool.query("DELETE FROM genfy_encuentra_escenarios_paises WHERE escenario_id=?", [escenarioId])
-    for (const paisId of paises_ids) {
-      await pool.query("INSERT INTO genfy_encuentra_escenarios_paises (escenario_id, pais_id) VALUES (?,?)", [
-        escenarioId,
-        paisId,
-      ])
+    const [objeto] = await pool.query(
+      `SELECT id, 
+              escenario_id, 
+              imagen_objetivo, 
+              orden, 
+              enlace as Url
+       FROM genfy_encuentra_objetos 
+       WHERE id=?`,
+      [req.params.id]
+    )
+
+    if (objeto.length === 0) {
+      return res.status(404).json({ error: "Objeto no encontrado" })
     }
 
-    res.json({ mensaje: "Escenario actualizado" })
+    // Normalizar enlace como URL
+    const objetoConUrl = {
+      ...objeto[0],
+      enlace: objeto[0].enlace
+        ? (/^https?:\/\//i.test(objeto[0].enlace)
+            ? objeto[0].enlace
+            : `http://${objeto[0].enlace}`)
+        : null,
+    }
+
+    res.json(objetoConUrl)
   } catch (error) {
+    console.error("Error al obtener objeto:", error)
     res.status(500).json({ error: "Error del servidor" })
   }
 })
 
-app.delete("/api/escenarios/:id", auth(true), async (req, res) => {
+
+// Actualizar un objeto
+app.put(
+  "/api/objetos/:id",
+  auth(true),
+  upload.single("imagen_objetivo"),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const { Url } = req.body
+      let imagen_url = null
+
+      if (req.file) {
+        imagen_url = `/img/${req.file.filename}`
+      }
+
+      await pool.query("UPDATE genfy_encuentra_objetos SET enlace = ? WHERE id = ?", [Url, id])
+
+      if (imagen_url) {
+        await pool.query("UPDATE genfy_encuentra_objetos SET imagen_objetivo = ? WHERE id = ?", [
+          imagen_url,
+          id,
+        ])
+      }
+
+      const usuario = await getUserInfo(req.user.id)
+      await logChange(
+        "actualizó un objeto",
+        `Objeto actualizado en el escenario - ID: ${id}`,
+        usuario,
+      )
+
+      res.json({ mensaje: "Objeto actualizado exitosamente" })
+    } catch (error) {
+      console.error("Error al actualizar objeto:", error)
+      res.status(500).json({ error: "Error del servidor al actualizar el objeto" })
+    }
+  },
+)
+
+// Eliminar un objeto
+app.delete("/api/objetos/:id", auth(true), async (req, res) => {
   try {
-    await pool.query("DELETE FROM genfy_encuentra_escenarios WHERE id=?", [req.params.id])
-    res.json({ mensaje: "Escenario eliminado" })
+    const { id } = req.params
+
+    // 1. Obtener la ruta de la imagen para eliminar el archivo
+    const [objeto] = await pool.query("SELECT imagen_objetivo FROM genfy_encuentra_objetos WHERE id = ?", [id])
+    if (objeto.length === 0) {
+      return res.status(404).json({ error: "Objeto no encontrado" })
+    }
+    const imagenUrl = objeto[0].imagen_objetivo
+    const imagePath = path.join(__dirname, "public", imagenUrl)
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath)
+    }
+
+    // 2. Eliminar los colliders asociados
+    await pool.query("DELETE FROM genfy_encuentra_colliders WHERE objeto_id = ?", [id])
+
+    // 3. Eliminar el objeto
+    await pool.query("DELETE FROM genfy_encuentra_objetos WHERE id=?", [id])
+
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("eliminó un objeto", `Objeto eliminado - ID: ${id}`, usuario)
+
+    res.json({ mensaje: "Objeto eliminado exitosamente" })
   } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
+    console.error("Error al eliminar objeto:", error)
+    res.status(500).json({ error: "Error del servidor al eliminar el objeto" })
+  }
+})
+app.get("/api/objetos/:id/colliders", async (req, res) => {
+  try {
+    const [colliders] = await pool.query("SELECT * FROM genfy_encuentra_colliders WHERE objeto_id = ?", [
+      req.params.id,
+    ])
+    res.json(colliders)
+  } catch (error) {
+    console.error("Error al obtener colliders:", error)
+    res.status(500).json({ error: "Error del servidor al obtener colliders" })
   }
 })
 
-// MODIFICADO: Rutas de Sprites para soportar múltiples países
 app.get("/api/sprites", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -507,18 +656,20 @@ app.get("/api/sprites", async (req, res) => {
 
 app.post("/api/sprites", auth(), upload.single("imagen"), async (req, res) => {
   try {
-    const { paises_ids, tipo } = req.body
+    const { paises_ids, tipo, enlace } = req.body
     if (!paises_ids || !tipo || !req.file) {
       return res.status(400).json({ error: "Países, tipo e imagen son requeridos" })
     }
     const paisesIdsArray = paises_ids.split(",").map(Number)
 
     const imagen_url = `/img/${req.file.filename}`
-    const [result] = await pool.query("INSERT INTO mision_genfy_sprites (tipo, imagen_url) VALUES (?,?)", [
+    const [result] = await pool.query("INSERT INTO mision_genfy_sprites (tipo, imagen_url, enlace) VALUES (?,?,?)", [
       tipo,
       imagen_url,
+      enlace || null,
     ])
     const spriteId = result.insertId
+
     for (const paisId of paisesIdsArray) {
       await pool.query("INSERT INTO mision_genfy_sprites_paises (sprite_id, pais_id) VALUES (?,?)", [spriteId, paisId])
     }
@@ -532,7 +683,7 @@ app.post("/api/sprites", auth(), upload.single("imagen"), async (req, res) => {
 app.put("/api/sprites/:id", auth(true), upload.single("imagen"), async (req, res) => {
   try {
     const spriteId = req.params.id
-    const { paises_ids, tipo } = req.body
+    const { paises_ids, tipo, enlace } = req.body
     const paisesIdsArray = paises_ids.split(",").map(Number)
     let imagen_url = req.body.imagen_url
 
@@ -540,8 +691,14 @@ app.put("/api/sprites/:id", auth(true), upload.single("imagen"), async (req, res
       imagen_url = `/img/${req.file.filename}`
     }
 
-    await pool.query("UPDATE mision_genfy_sprites SET tipo=?, imagen_url=? WHERE id=?", [tipo, imagen_url, spriteId])
+    await pool.query("UPDATE mision_genfy_sprites SET tipo=?, imagen_url=?, enlace=? WHERE id=?", [
+      tipo,
+      imagen_url,
+      enlace || null,
+      spriteId,
+    ])
     await pool.query("DELETE FROM mision_genfy_sprites_paises WHERE sprite_id=?", [spriteId])
+
     for (const paisId of paisesIdsArray) {
       await pool.query("INSERT INTO mision_genfy_sprites_paises (sprite_id, pais_id) VALUES (?,?)", [spriteId, paisId])
     }
@@ -561,14 +718,13 @@ app.delete("/api/sprites/:id", auth(true), async (req, res) => {
   }
 })
 
-// Unity API endpoints for game data consumption
 app.get("/api/spritesUnity/:paisId", async (req, res) => {
   try {
     const { paisId } = req.params
 
     // Get all sprites for the country
     const [sprites] = await pool.query(
-      `SELECT s.id, s.tipo, s.imagen_url
+      `SELECT s.id, s.tipo, s.imagen_url, s.enlace
         FROM mision_genfy_sprites s
         JOIN mision_genfy_sprites_paises sp ON s.id = sp.sprite_id
         WHERE sp.pais_id = ?
@@ -646,410 +802,183 @@ app.get("/api/spritesUnity/:paisId", async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
-
-app.get("/api/escenariosUnity/:paisId", async (req, res) => {
-  const { paisId } = req.params
-
+app.post("/api/escenarios", auth(true), upload.single("imagen"), async (req, res) => {
   try {
-    // Traer escenarios con su país usando la nueva estructura de múltiples países
-    const [escenarios] = await pool.query(
-      `SELECT e.*, p.nombre AS pais_nombre
-       FROM genfy_encuentra_escenarios e
-       JOIN genfy_encuentra_escenarios_paises ep ON e.id = ep.escenario_id
-       LEFT JOIN paises p ON ep.pais_id = p.id
-       WHERE ep.pais_id = ?`,
-      [paisId],
-    )
+    console.log("[v0] Creating escenario - body:", req.body)
+    console.log("[v0] Creating escenario - file:", req.file)
 
-    for (const escenario of escenarios) {
-      // Traer objetos de este escenario
-      const [objetos] = await pool.query(
-        `SELECT o.id, o.imagen_objetivo, o.orden
-         FROM genfy_encuentra_objetos o
-         WHERE o.escenario_id = ?
-         ORDER BY o.orden ASC`,
-        [escenario.id],
-      )
+    let paises_ids, imagen_fondo
 
-      for (const objeto of objetos) {
-        // Traer colliders de cada objeto
-        const [colliders] = await pool.query(
-          `SELECT c.id, c.punto_x, c.punto_y, c.indice
-           FROM genfy_encuentra_colliders c
-           WHERE c.objeto_id = ?
-           ORDER BY c.indice ASC`,
-          [objeto.id],
-        )
-        objeto.colliders = colliders
-      }
-
-      escenario.objetos = objetos
+    // Handle FormData (with file upload)
+    if (req.file) {
+      paises_ids = JSON.parse(req.body.paises_ids || "[]")
+      imagen_fondo = `/img/${req.file.filename}`
+    } else {
+      // Handle JSON request
+      paises_ids = req.body.paises_ids
+      imagen_fondo = req.body.imagen_fondo
     }
 
-    res.json(escenarios)
+    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0 || !imagen_fondo) {
+      return res.status(400).json({ error: "Países e imagen de fondo son requeridos" })
+    }
+
+    const [result] = await pool.query("INSERT INTO genfy_encuentra_escenarios (imagen_fondo) VALUES (?)", [
+      imagen_fondo,
+    ])
+    const escenarioId = result.insertId
+
+    for (const paisId of paises_ids) {
+      await pool.query("INSERT INTO genfy_encuentra_escenarios_paises (escenario_id, pais_id) VALUES (?,?)", [
+        escenarioId,
+        paisId,
+      ])
+    }
+
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("creó un nuevo escenario", `Escenario ID: ${escenarioId}`, usuario)
+
+    console.log("[v0] Escenario created successfully:", escenarioId)
+    res.json({ mensaje: "Escenario creado", id: escenarioId })
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: "Error del servidor" })
+    console.error("[v0] Error creating escenario:", error)
+    res.status(500).json({ error: "Error del servidor: " + error.message })
   }
 })
+app.put("/api/escenarios/:id", auth(true), upload.single("imagen"), async (req, res) => {
+  try {
+    const escenarioId = req.params.id
+    console.log("[v0] Updating escenario:", escenarioId, "- body:", req.body)
+    console.log("[v0] Updating escenario - file:", req.file)
 
-// Unity endpoint for roulette game
-app.get("/api/ruletaUnity/:paisId", async (req, res) => {
+    let paises_ids, imagen_fondo
+
+    // Handle FormData (with file upload)
+    if (req.file) {
+      paises_ids = JSON.parse(req.body.paises_ids || "[]")
+      imagen_fondo = `/img/${req.file.filename}`
+    } else {
+      // Handle JSON request
+      paises_ids = req.body.paises_ids
+      imagen_fondo = req.body.imagen_fondo
+    }
+
+    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0 || !imagen_fondo) {
+      return res.status(400).json({ error: "Países e imagen de fondo son requeridos" })
+    }
+
+    await pool.query("UPDATE genfy_encuentra_escenarios SET imagen_fondo=? WHERE id=?", [
+      imagen_fondo,
+      escenarioId,
+    ])
+    await pool.query("DELETE FROM genfy_encuentra_escenarios_paises WHERE escenario_id=?", [escenarioId])
+
+    for (const paisId of paises_ids) {
+      await pool.query("INSERT INTO genfy_encuentra_escenarios_paises (escenario_id, pais_id) VALUES (?,?)", [
+        escenarioId,
+        paisId,
+      ])
+    }
+
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("actualizó un escenario", `Escenario ID: ${escenarioId}`, usuario)
+
+    console.log("[v0] Escenario updated successfully:", escenarioId)
+    res.json({ mensaje: "Escenario actualizado" })
+  } catch (error) {
+    console.error("[v0] Error updating escenario:", error)
+    res.status(500).json({ error: "Error del servidor: " + error.message })
+  }
+})
+app.post("/api/escenarios/:id/objetos", auth(true), upload.single("imagen_objetivo"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se recibió ningún archivo de imagen" })
+    }
+
+    const { Url } = req.body
+    const escenarioId = req.params.id
+    const imagen_url = `/img/${req.file.filename}`
+
+    // CORRECCIÓN: El número de '?' debe coincidir con el número de valores.
+    await pool.query("INSERT INTO genfy_encuentra_objetos (escenario_id, imagen_objetivo, enlace) VALUES (?, ?, ?)", [
+      escenarioId,
+      imagen_url,
+      Url
+    ])
+
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo objeto", `Objeto agregado al escenario ${escenarioId}`, usuario)
+
+    res.status(201).json({ mensaje: "Objeto agregado exitosamente" })
+  } catch (error) {
+    console.error("Error al agregar objeto:", error)
+    res.status(500).json({ error: "Error del servidor al agregar el objeto" })
+  }
+})
+
+app.get("/api/escenariosUnity/:paisId", async (req, res) => {
   try {
     const { paisId } = req.params
 
-    const [temas] = await pool.query(`SELECT id, nombre FROM ruleta_temas ORDER BY id`)
-
-    const ruletaData = {}
-
-    // Para cada tema, obtener sus preguntas y crear la estructura simplificada
-    for (const tema of temas) {
-      const [preguntas] = await pool.query(
-        `SELECT pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3 FROM ruleta_preguntas WHERE tema_id = ?`,
-        [tema.id],
-      )
-
-      ruletaData[tema.nombre.toLowerCase()] = preguntas.map((p) => ({
-        pregunta: p.pregunta,
-        respuestas: [p.respuesta_correcta, p.respuesta_1, p.respuesta_2, p.respuesta_3].filter(
-          (respuesta) => respuesta && respuesta.trim() !== "",
-        ), // Filtrar respuestas vacías
-        correcta: p.respuesta_correcta,
-      }))
-    }
-
-    res.json(ruletaData)
-  } catch (error) {
-    console.error("Error al obtener datos de ruleta para Unity:", error)
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.get("/api/escenarios/:escenarioId/objetos", auth(), async (req, res) => {
-  try {
-    const [rows] = await pool.query(`SELECT * FROM genfy_encuentra_objetos WHERE escenario_id = ? ORDER BY orden, id`, [
-      req.params.escenarioId,
-    ])
-    res.json(rows)
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.get("/api/objetos/:id", auth(), async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM genfy_encuentra_objetos WHERE id = ?", [req.params.id])
-    if (!rows.length) {
-      return res.status(404).json({ error: "Objeto no encontrado" })
-    }
-    res.json(rows[0])
-  } catch (error) {
-    console.error("Error getting object:", error)
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.post("/api/escenarios/:escenarioId/objetos", auth(true), upload.single("imagen_objetivo"), async (req, res) => {
-  try {
-    console.log("[v0] Adding object to scenario:", req.params.escenarioId)
-    console.log("[v0] Request body:", req.body)
-    console.log("[v0] Uploaded file:", req.file)
-
-    const { orden } = req.body
-    const escenario_id = req.params.escenarioId
-
-    if (!req.file) {
-      console.log("[v0] No file uploaded")
-      return res.status(400).json({ error: "Se requiere una imagen" })
-    }
-
-    const imagen_objetivo = `/img/${req.file.filename}`
-    console.log("[v0] Generated image URL:", imagen_objetivo)
-
-    const [result] = await pool.query(
-      "INSERT INTO genfy_encuentra_objetos (escenario_id, imagen_objetivo, orden) VALUES (?,?,?)",
-      [escenario_id, imagen_objetivo, orden || 1],
+    // Get all scenarios for the country
+    const [escenarios] = await pool.query(
+      `SELECT e.id, e.imagen_fondo
+       FROM genfy_encuentra_escenarios e
+       JOIN genfy_encuentra_escenarios_paises ep ON e.id = ep.escenario_id
+       WHERE ep.pais_id = ?
+       ORDER BY e.id ASC`,
+      [paisId],
     )
 
-    console.log("[v0] Object created with ID:", result.insertId)
-    res.json({ mensaje: "Objeto creado", id: result.insertId })
-  } catch (error) {
-    console.error("[v0] Error creating object:", error)
-    res.status(500).json({ error: "Error del servidor", details: error.message })
-  }
-})
-
-app.put("/api/objetos/:id", auth(true), upload.single("imagen_objetivo"), async (req, res) => {
-  try {
-    console.log("[v0] Updating object:", req.params.id)
-    console.log("[v0] Request body:", req.body)
-    console.log("[v0] Uploaded file:", req.file)
-
-    let { imagen_objetivo, orden } = req.body
-
-    // If a new file was uploaded, use the new file path
-    if (req.file) {
-      imagen_objetivo = `/img/${req.file.filename}`
-      console.log("[v0] New image uploaded:", imagen_objetivo)
+    if (escenarios.length === 0) {
+      return res.status(404).json({ error: "No se encontraron escenarios para el país especificado." })
     }
 
-    // Ensure we have the required fields
-    if (!imagen_objetivo || !orden) {
-      return res.status(400).json({ error: "Imagen y orden son requeridos" })
-    }
+    // Get objects for each scenario
+    const escenariosConObjetos = await Promise.all(
+      escenarios.map(async (escenario) => {
+        const [objetos] = await pool.query(
+          `SELECT o.id, o.imagen_objetivo, o.orden, o.enlace,
+                 GROUP_CONCAT(CONCAT(c.punto_x, ',', c.punto_y) ORDER BY c.indice SEPARATOR ';') as colliders
+           FROM genfy_encuentra_objetos o
+           LEFT JOIN genfy_encuentra_colliders c ON o.id = c.objeto_id
+           WHERE o.escenario_id = ?
+           GROUP BY o.id
+           ORDER BY o.orden ASC`,
+          [escenario.id],
+        )
 
-    await pool.query("UPDATE genfy_encuentra_objetos SET imagen_objetivo=?, orden=? WHERE id=?", [
-      imagen_objetivo,
-      Number.parseInt(orden) || 1,
-      req.params.id,
-    ])
+        // Process colliders
+        const objetosConColliders = objetos.map((obj) => ({
+          ...obj,
+          colliders: obj.colliders
+            ? obj.colliders.split(";").map((point) => {
+                const [x, y] = point.split(",")
+                return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
+              })
+            : [],
+        }))
 
-    console.log("[v0] Object updated successfully")
-    res.json({ mensaje: "Objeto actualizado" })
-  } catch (error) {
-    console.error("[v0] Error updating object:", error)
-    res.status(500).json({ error: "Error del servidor", details: error.message })
-  }
-})
-
-app.delete("/api/objetos/:id", auth(true), async (req, res) => {
-  try {
-    await pool.query("DELETE FROM genfy_encuentra_objetos WHERE id=?", [req.params.id])
-    res.json({ mensaje: "Objeto eliminado" })
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.get("/api/objetos/:objetoId/colliders", async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM genfy_encuentra_colliders WHERE objeto_id = ? ORDER BY indice", [
-      req.params.objetoId,
-    ])
-    res.json(rows)
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.post("/api/objetos/:objetoId/colliders/batch", auth(true), async (req, res) => {
-  const connection = await pool.getConnection()
-  try {
-    const { points } = req.body
-    const objeto_id = req.params.objetoId
-    if (!objeto_id || !points || !Array.isArray(points)) {
-      return res.status(400).json({ error: "Datos inválidos" })
-    }
-    await connection.beginTransaction()
-    await connection.query("DELETE FROM genfy_encuentra_colliders WHERE objeto_id = ?", [objeto_id])
-    for (const point of points) {
-      await connection.query(
-        "INSERT INTO genfy_encuentra_colliders (objeto_id, punto_x, punto_y, indice) VALUES (?,?,?,?)",
-        [objeto_id, point.punto_x, point.punto_y, point.indice],
-      )
-    }
-    await connection.commit()
-    connection.release()
-    res.json({ mensaje: "Collider polígono creado exitosamente", puntos: points.length })
-  } catch (error) {
-    await connection.rollback()
-    connection.release()
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.get("/api/logs", auth(true), async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM logs_cambios ORDER BY fecha DESC LIMIT 100")
-    res.json(rows)
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-// Rutas de Ruleta (sin cambios, ya que no dependen de países)
-app.get("/api/ruleta/temas", auth(), async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM ruleta_temas ORDER BY nombre")
-    res.json(rows)
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.post("/api/ruleta/temas", auth(true), async (req, res) => {
-  try {
-    const { nombre, color } = req.body
-    const [result] = await pool.query("INSERT INTO ruleta_temas (nombre, color) VALUES (?,?)", [nombre, color])
-    res.json({ mensaje: "Tema creado", id: result.insertId })
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.put("/api/ruleta/temas/:id", auth(true), async (req, res) => {
-  try {
-    const { nombre, color, activo } = req.body
-    await pool.query("UPDATE ruleta_temas SET nombre=?, color=?, activo=? WHERE id=?", [
-      nombre,
-      color,
-      activo ? 1 : 0,
-      req.params.id,
-    ])
-    res.json({ mensaje: "Tema actualizado" })
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-app.delete("/api/ruleta/temas/:id", auth(true), async (req, res) => {
-  try {
-    await pool.query("DELETE FROM ruleta_temas WHERE id=?", [req.params.id])
-    res.json({ mensaje: "Tema eliminado" })
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-// MODIFICADO: Updated GET endpoint to include countries information
-app.get("/api/ruleta/preguntas", async (req, res) => {
-  try {
-    const [preguntas] = await pool.query(`
-      SELECT 
-        rp.*,
-        rt.nombre as tema_nombre,
-        rt.color as tema_color,
-        GROUP_CONCAT(DISTINCT p.id) as paises_ids,
-        GROUP_CONCAT(DISTINCT p.nombre) as paises_nombres
-      FROM ruleta_preguntas rp
-      JOIN ruleta_temas rt ON rp.tema_id = rt.id
-      LEFT JOIN ruleta_preguntas_paises rpp ON rp.id = rpp.pregunta_id
-      LEFT JOIN paises p ON rpp.pais_id = p.id
-      GROUP BY rp.id
-      ORDER BY rp.id DESC
-    `)
-    res.json(preguntas)
-  } catch (error) {
-    console.error("Error fetching ruleta questions:", error)
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
-
-// MODIFICADO: Updated POST endpoint to handle multiple countries for ruleta questions
-app.post("/api/ruleta/preguntas", auth(true), async (req, res) => {
-  const connection = await pool.getConnection()
-  try {
-    await connection.beginTransaction()
-
-    const { tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, paises_ids } = req.body
-
-    // Validar que se hayan seleccionado países
-    if (!paises_ids || paises_ids.length === 0) {
-      return res.status(400).json({ error: "Debe seleccionar al menos un país" })
-    }
-
-    // Insertar la pregunta
-    const [result] = await connection.query(
-      "INSERT INTO ruleta_preguntas (tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3) VALUES (?,?,?,?,?,?)",
-      [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3],
+        return {
+          ...escenario,
+          objetos: objetosConColliders,
+        }
+      }),
     )
 
-    const preguntaId = result.insertId
-
-    // Insertar las relaciones con países
-    for (const paisId of paises_ids) {
-      await connection.query("INSERT INTO ruleta_preguntas_paises (pregunta_id, pais_id) VALUES (?, ?)", [
-        preguntaId,
-        paisId,
-      ])
-    }
-
-    await connection.commit()
-    res.json({ mensaje: "Pregunta creada", id: preguntaId })
+    res.json(escenariosConObjetos)
   } catch (error) {
-    await connection.rollback()
-    console.error("Error creating ruleta question:", error)
+    console.error("Error al obtener escenarios para Unity:", error)
     res.status(500).json({ error: "Error del servidor" })
-  } finally {
-    connection.release()
-  }
-})
-
-// MODIFICADO: Updated PUT endpoint to handle multiple countries for ruleta questions
-app.put("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
-  const connection = await pool.getConnection()
-  try {
-    await connection.beginTransaction()
-
-    const { tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa, paises_ids } =
-      req.body
-
-    // Validar que se hayan seleccionado países
-    if (!paises_ids || paises_ids.length === 0) {
-      return res.status(400).json({ error: "Debe seleccionar al menos un país" })
-    }
-
-    // Actualizar la pregunta
-    await connection.query(
-      "UPDATE ruleta_preguntas SET tema_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=?, activa=? WHERE id=?",
-      [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa, req.params.id],
-    )
-
-    // Eliminar relaciones existentes con países
-    await connection.query("DELETE FROM ruleta_preguntas_paises WHERE pregunta_id = ?", [req.params.id])
-
-    // Insertar las nuevas relaciones con países
-    for (const paisId of paises_ids) {
-      await connection.query("INSERT INTO ruleta_preguntas_paises (pregunta_id, pais_id) VALUES (?, ?)", [
-        req.params.id,
-        paisId,
-      ])
-    }
-
-    await connection.commit()
-    res.json({ mensaje: "Pregunta actualizada" })
-  } catch (error) {
-    await connection.rollback()
-    console.error("Error updating ruleta question:", error)
-    res.status(500).json({ error: "Error del servidor" })
-  } finally {
-    connection.release()
-  }
-})
-
-app.delete("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
-  const connection = await pool.getConnection()
-  try {
-    await connection.beginTransaction()
-
-    // Eliminar relaciones con países primero
-    await connection.query("DELETE FROM ruleta_preguntas_paises WHERE pregunta_id = ?", [req.params.id])
-
-    // Eliminar la pregunta
-    await connection.query("DELETE FROM ruleta_preguntas WHERE id = ?", [req.params.id])
-
-    await connection.commit()
-    res.json({ mensaje: "Pregunta eliminada" })
-  } catch (error) {
-    await connection.rollback()
-    console.error("Error deleting ruleta question:", error)
-    res.status(500).json({ error: "Error del servidor" })
-  } finally {
-    connection.release()
   }
 })
 
 app.get("/api/terapias", async (req, res) => {
   try {
-    const [terapias] = await pool.query(`
-      SELECT t.id, t.medicamento_id, t.bacteria_id,
-             m.imagen_url as medicamento_imagen, m.id as medicamento_sprite_id,
-             b.imagen_url as bacteria_imagen, b.id as bacteria_sprite_id
-      FROM mision_genfy_terapias t
-      JOIN mision_genfy_sprites m ON t.medicamento_id = m.id
-      JOIN mision_genfy_sprites b ON t.bacteria_id = b.id
-      ORDER BY t.id
-    `)
+    const [terapias] = await pool.query(
+      `SELECT t.id, t.medicamento_id, t.bacteria_id FROM mision_genfy_terapias t ORDER BY t.id`,
+    )
     res.json(terapias)
   } catch (error) {
     console.error("Error al obtener terapias:", error)
@@ -1063,22 +992,6 @@ app.post("/api/terapias", async (req, res) => {
 
     if (!medicamento_id || !bacteria_id) {
       return res.status(400).json({ error: "Medicamento y bacteria son requeridos" })
-    }
-
-    // Verify that both sprites exist and are of correct type
-    const [medicamento] = await pool.query(
-      "SELECT id FROM mision_genfy_sprites WHERE id = ? AND tipo = 'medicamento'",
-      [medicamento_id],
-    )
-    const [bacteria] = await pool.query("SELECT id FROM mision_genfy_sprites WHERE id = ? AND tipo = 'bacteria'", [
-      bacteria_id,
-    ])
-
-    if (medicamento.length === 0) {
-      return res.status(400).json({ error: "Medicamento no encontrado" })
-    }
-    if (bacteria.length === 0) {
-      return res.status(400).json({ error: "Bacteria no encontrada" })
     }
 
     const [result] = await pool.query("INSERT INTO mision_genfy_terapias (medicamento_id, bacteria_id) VALUES (?, ?)", [
@@ -1107,6 +1020,208 @@ app.delete("/api/terapias/:id", async (req, res) => {
   }
 })
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Servidor ejecutándose en http://localhost:3000")
+app.get("/api/ruleta/temas", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM ruleta_temas ORDER BY nombre")
+    res.json(rows)
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
 })
+
+
+
+
+app.delete("/api/ruleta/temas/:id", auth(true), async (req, res) => {
+  try {
+    const [temaToDelete] = await pool.query("SELECT nombre FROM ruleta_temas WHERE id=?", [req.params.id])
+    const nombreTema = temaToDelete.length > 0 ? temaToDelete[0].nombre : "Tema desconocido"
+
+    await pool.query("DELETE FROM ruleta_temas WHERE id=?", [req.params.id])
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "eliminó un tema de ruleta",
+      `Tema eliminado: ${nombreTema} - Juego Ruleta - ID: ${req.params.id}`,
+      usuario,
+    )
+    res.json({ mensaje: "Tema eliminado" })
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.get("/api/ruleta/preguntas", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT rp.*, rt.nombre as tema_nombre,
+            GROUP_CONCAT(p.nombre SEPARATOR ', ') as paises_nombres,
+            GROUP_CONCAT(p.id SEPARATOR ',') as paises_ids
+       FROM ruleta_preguntas rp 
+       LEFT JOIN ruleta_temas rt ON rp.tema_id = rt.id
+       LEFT JOIN ruleta_preguntas_paises rpp ON rp.id = rpp.pregunta_id
+       LEFT JOIN paises p ON rpp.pais_id = p.id 
+       GROUP BY rp.id
+       ORDER BY rp.id DESC`,
+    )
+    res.json(rows)
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+app.get("/api/escenarios", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT e.*,
+              GROUP_CONCAT(p.nombre SEPARATOR ', ') as paises_nombres,
+              GROUP_CONCAT(p.id SEPARATOR ',') as paises_ids
+       FROM genfy_encuentra_escenarios e
+       LEFT JOIN genfy_encuentra_escenarios_paises ep ON e.id = ep.escenario_id
+       LEFT JOIN paises p ON ep.pais_id = p.id
+       GROUP BY e.id
+       ORDER BY e.id DESC`
+    )
+
+    res.json(rows)
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+
+
+
+
+app.delete("/api/escenarios/:id", auth(true), async (req, res) => {
+  try {
+    await pool.query("DELETE FROM genfy_encuentra_escenarios WHERE id=?", [req.params.id])
+    res.json({ mensaje: "Escenario eliminado" })
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.get("/api/escenarios/:id/objetos", async (req, res) => {
+  try {
+    const [objetos] = await pool.query(
+      `SELECT o.id, 
+              o.imagen_objetivo, 
+              o.orden, 
+              o.enlace,
+              GROUP_CONCAT(CONCAT(c.punto_x, ',', c.punto_y) ORDER BY c.indice SEPARATOR ';') as colliders
+      FROM genfy_encuentra_objetos o
+      LEFT JOIN genfy_encuentra_colliders c ON o.id = c.objeto_id
+      WHERE o.escenario_id = ?
+      GROUP BY o.id
+      ORDER BY o.orden ASC`,
+      [req.params.id]
+    )
+
+
+    const objetosConColliders = objetos.map((obj) => ({
+      ...obj,
+      colliders: obj.colliders
+        ? obj.colliders.split(";").map((point) => {
+            const [x, y] = point.split(",")
+            return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
+          })
+        : [],
+    }))
+
+    res.json(objetosConColliders)
+  } catch (error) {
+    console.error("Error al obtener objetos del escenario:", error)
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.post("/api/ruleta/preguntas", auth(true), async (req, res) => {
+  try {
+    const { tema_id, paises_ids, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa } =
+      req.body
+
+    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0) {
+      return res.status(400).json({ error: "Debe seleccionar al menos un país" })
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO ruleta_preguntas (tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa) VALUES (?,?,?,?,?,?,?)",
+      [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa ? 1 : 0],
+    )
+    const preguntaId = result.insertId
+
+    for (const paisId of paises_ids) {
+      await pool.query("INSERT INTO ruleta_preguntas_paises (pregunta_id, pais_id) VALUES (?,?)", [preguntaId, paisId])
+    }
+
+    const [paisesInfo] = await pool.query("SELECT nombre FROM paises WHERE id IN (?)", [paises_ids])
+    const nombresPaises = paisesInfo.map((p) => p.nombre).join(", ")
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó una nueva pregunta de ruleta", `Pregunta para ${nombresPaises} - Juego Ruleta`, usuario)
+
+    res.json({ mensaje: "Pregunta creada", id: preguntaId })
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.put("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
+  try {
+    const preguntaId = req.params.id
+    const { tema_id, paises_ids, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa } =
+      req.body
+
+    if (!paises_ids || !Array.isArray(paises_ids) || paises_ids.length === 0) {
+      return res.status(400).json({ error: "Debe seleccionar al menos un país" })
+    }
+
+    await pool.query(
+      "UPDATE ruleta_preguntas SET tema_id=?, pregunta=?, respuesta_correcta=?, respuesta_1=?, respuesta_2=?, respuesta_3=?, activa=? WHERE id=?",
+      [tema_id, pregunta, respuesta_correcta, respuesta_1, respuesta_2, respuesta_3, activa ? 1 : 0, preguntaId],
+    )
+
+    await pool.query("DELETE FROM ruleta_preguntas_paises WHERE pregunta_id=?", [preguntaId])
+
+    for (const paisId of paises_ids) {
+      await pool.query("INSERT INTO ruleta_preguntas_paises (pregunta_id, pais_id) VALUES (?,?)", [preguntaId, paisId])
+    }
+
+    const [paisesInfo] = await pool.query("SELECT nombre FROM paises WHERE id IN (?)", [paises_ids])
+    const nombresPaises = paisesInfo.map((p) => p.nombre).join(", ")
+    const usuario = await getUserInfo(req.user.id)
+    await logChange(
+      "actualizó una pregunta de ruleta",
+      `Pregunta de ${nombresPaises} - Juego Ruleta - ID: ${preguntaId}`,
+      usuario,
+    )
+
+    res.json({ mensaje: "Pregunta actualizada" })
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.delete("/api/ruleta/preguntas/:id", auth(true), async (req, res) => {
+  try {
+    await pool.query("DELETE FROM ruleta_preguntas WHERE id=?", [req.params.id])
+    res.json({ mensaje: "Pregunta eliminada" })
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.get("/api/logs", auth(true), async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM logs_cambios ORDER BY fecha DESC LIMIT 100")
+    res.json(rows)
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Servidor corriendo en puerto ${process.env.PORT || 3000}`)
+})
+
+
+
+
