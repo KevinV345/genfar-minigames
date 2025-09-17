@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1:3306
--- Tiempo de generación: 17-09-2025 a las 01:42:57
+-- Tiempo de generación: 17-09-2025 a las 21:47:43
 -- Versión del servidor: 9.1.0
 -- Versión de PHP: 8.3.14
 
@@ -36,7 +36,17 @@ CREATE TABLE IF NOT EXISTS `genfy_encuentra_colliders` (
   `indice` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `objeto_id` (`objeto_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `genfy_encuentra_colliders`
+--
+
+INSERT INTO `genfy_encuentra_colliders` (`id`, `objeto_id`, `punto_x`, `punto_y`, `indice`) VALUES
+(42, 17, 10.766046, 12.330163, 0),
+(43, 17, 23.188406, 7.361219, 1),
+(44, 17, 29.606625, 30.963703, 2),
+(45, 17, 16.356108, 36.553766, 3);
 
 -- --------------------------------------------------------
 
@@ -49,14 +59,14 @@ CREATE TABLE IF NOT EXISTS `genfy_encuentra_escenarios` (
   `id` int NOT NULL AUTO_INCREMENT,
   `imagen_fondo` text NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `genfy_encuentra_escenarios`
 --
 
 INSERT INTO `genfy_encuentra_escenarios` (`id`, `imagen_fondo`) VALUES
-(28, '/img/imagen-1758071688321-939753388.png');
+(32, '/img/imagen-1758121953371-847381927.png');
 
 -- --------------------------------------------------------
 
@@ -77,8 +87,7 @@ CREATE TABLE IF NOT EXISTS `genfy_encuentra_escenarios_paises` (
 --
 
 INSERT INTO `genfy_encuentra_escenarios_paises` (`escenario_id`, `pais_id`) VALUES
-(28, 4),
-(28, 6);
+(32, 2);
 
 -- --------------------------------------------------------
 
@@ -95,14 +104,14 @@ CREATE TABLE IF NOT EXISTS `genfy_encuentra_objetos` (
   `enlace` text,
   PRIMARY KEY (`id`),
   KEY `escenario_id` (`escenario_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `genfy_encuentra_objetos`
 --
 
 INSERT INTO `genfy_encuentra_objetos` (`id`, `escenario_id`, `imagen_objetivo`, `orden`, `enlace`) VALUES
-(16, 28, '/img/imagen_objetivo-1758072308077-448895137.png', 1, 'http://localhost/phpmyadmin/index.php?route=/sql&pos=0&db=minijuegos&table=genfy_encuentra_objetos');
+(17, 32, '/img/imagen_objetivo-1758121967002-805143331.png', 1, '');
 
 -- --------------------------------------------------------
 
@@ -119,7 +128,23 @@ CREATE TABLE IF NOT EXISTS `genfy_pregunta` (
   `respuesta_2` varchar(255) NOT NULL,
   `respuesta_3` varchar(255) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `genfy_pregunta`
+--
+
+INSERT INTO `genfy_pregunta` (`id`, `pregunta`, `respuesta_correcta`, `respuesta_1`, `respuesta_2`, `respuesta_3`) VALUES
+(8, '¿Cuál es la capital de Australia?', 'Canberra', 'Sídney', 'Melbourne', 'Brisbane'),
+(9, '¿Qué planeta es conocido como el \"Planeta Rojo\"?', 'Marte', 'Júpiter', 'Venus', 'Saturno'),
+(10, '¿Quién pintó la Mona Lisa?', 'Leonardo da Vinci', 'Pablo Picasso', 'Vincent van Gogh', 'Claude Monet'),
+(11, '¿En qué año llegó el hombre a la luna?', '1969', '1957', '1975', '1981'),
+(12, '¿Cuál es el océano más grande del mundo?', 'Océano Pacífico', 'Océano Atlántico', 'Océano Índico', 'Océano Ártico'),
+(13, '¿Qué animal es el mamífero terrestre más grande?', 'Elefante africano', 'Jirafa', 'Rinoceronte', 'Hipopótamo'),
+(14, '¿Cuál es el elemento químico con el símbolo \"O\"?', 'Oxígeno', 'Oro', 'Osmio', 'Plata'),
+(15, '¿Qué país es el mayor productor de café del mundo?', 'Brasil', 'Colombia', 'Vietnam', 'Etiopía'),
+(16, '¿Cuántos huesos tiene el cuerpo humano adulto?', '206', '200', '210', '212'),
+(17, '¿Cuál es el río más largo del mundo?', 'Río Nilo', 'Río Amazonas', 'Río Misisipi', 'Río Yangtsé');
 
 -- --------------------------------------------------------
 
@@ -135,6 +160,22 @@ CREATE TABLE IF NOT EXISTS `genfy_pregunta_paises` (
   KEY `pais_id` (`pais_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Volcado de datos para la tabla `genfy_pregunta_paises`
+--
+
+INSERT INTO `genfy_pregunta_paises` (`pregunta_id`, `pais_id`) VALUES
+(8, 2),
+(9, 2),
+(10, 2),
+(11, 2),
+(12, 2),
+(13, 2),
+(14, 2),
+(15, 2),
+(16, 2),
+(17, 2);
+
 -- --------------------------------------------------------
 
 --
@@ -148,7 +189,7 @@ CREATE TABLE IF NOT EXISTS `logs_cambios` (
   `accion` varchar(255) NOT NULL,
   `detalle` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=140 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=181 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `logs_cambios`
@@ -217,7 +258,48 @@ INSERT INTO `logs_cambios` (`id`, `fecha`, `accion`, `detalle`) VALUES
 (136, '2025-09-17 01:28:06', 'actualizó un objeto', 'el usuario Administrador, actualizó un objeto - Objeto actualizado en el escenario - ID: 16'),
 (137, '2025-09-17 01:31:51', 'actualizó un objeto', 'el usuario Administrador, actualizó un objeto - Objeto actualizado en el escenario - ID: 16'),
 (138, '2025-09-17 01:39:25', 'actualizó un objeto', 'el usuario Administrador, actualizó un objeto - Objeto actualizado en el escenario - ID: 16'),
-(139, '2025-09-17 01:39:43', 'actualizó un objeto', 'el usuario Administrador, actualizó un objeto - Objeto actualizado en el escenario - ID: 16');
+(139, '2025-09-17 01:39:43', 'actualizó un objeto', 'el usuario Administrador, actualizó un objeto - Objeto actualizado en el escenario - ID: 16'),
+(140, '2025-09-17 14:27:01', 'actualizó un usuario', 'el usuario Administrador2, actualizó un usuario - Usuario: Administrador2 (admin@minijuegos.com) - Sistema de administración - ID: 1'),
+(141, '2025-09-17 14:27:20', 'actualizó un usuario', 'el usuario Administrador, actualizó un usuario - Usuario: Administrador (admin@minijuegos.com) - Sistema de administración - ID: 1'),
+(142, '2025-09-17 14:51:47', 'actualizó un país', 'el usuario Administrador, actualizó un país - País: Colombia - Configuración general - ID: 6'),
+(143, '2025-09-17 14:52:00', 'actualizó un país', 'el usuario Administrador, actualizó un país - País: Colombia - Configuración general - ID: 6'),
+(144, '2025-09-17 14:52:20', 'agregó una nueva pregunta', 'el usuario Administrador, agregó una nueva pregunta - Pregunta para Colombia - Juego Genfy Pregunta'),
+(145, '2025-09-17 14:52:27', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 7'),
+(146, '2025-09-17 14:52:50', 'creó un nuevo escenario', 'el usuario Administrador, creó un nuevo escenario - Escenario ID: 29'),
+(147, '2025-09-17 14:53:06', 'creó un nuevo escenario', 'el usuario Administrador, creó un nuevo escenario - Escenario ID: 30'),
+(148, '2025-09-17 14:53:38', 'creó un nuevo escenario', 'el usuario Administrador, creó un nuevo escenario - Escenario ID: 31'),
+(149, '2025-09-17 15:11:54', 'eliminó un tema de ruleta', 'el usuario Administrador, eliminó un tema de ruleta - Tema eliminado: toxicologia - Juego Ruleta - ID: 17'),
+(150, '2025-09-17 15:12:33', 'creó un nuevo escenario', 'el usuario Administrador, creó un nuevo escenario - Escenario ID: 32'),
+(151, '2025-09-17 15:12:47', 'agregó un nuevo objeto', 'el usuario Administrador, agregó un nuevo objeto - Objeto agregado al escenario 32'),
+(152, '2025-09-17 15:12:57', 'guardó colliders', 'el usuario Administrador, guardó colliders - Objeto ID: 17'),
+(153, '2025-09-17 16:11:56', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 51'),
+(154, '2025-09-17 16:12:27', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 50'),
+(155, '2025-09-17 16:12:34', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 49'),
+(156, '2025-09-17 16:12:39', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 48'),
+(157, '2025-09-17 16:12:45', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 47'),
+(158, '2025-09-17 16:12:53', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 34'),
+(159, '2025-09-17 16:12:57', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 35'),
+(160, '2025-09-17 16:13:02', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 36'),
+(161, '2025-09-17 16:13:06', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 37'),
+(162, '2025-09-17 16:13:10', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 38'),
+(163, '2025-09-17 16:13:15', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 39'),
+(164, '2025-09-17 16:13:19', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 40'),
+(165, '2025-09-17 16:13:23', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 41'),
+(166, '2025-09-17 16:13:27', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 42'),
+(167, '2025-09-17 16:13:32', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 43'),
+(168, '2025-09-17 16:13:36', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 44'),
+(169, '2025-09-17 16:13:40', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 45'),
+(170, '2025-09-17 16:13:44', 'actualizó una pregunta de ruleta', 'el usuario Administrador, actualizó una pregunta de ruleta - Pregunta de Colombia - Juego Ruleta - ID: 46'),
+(171, '2025-09-17 16:33:04', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 17'),
+(172, '2025-09-17 16:33:07', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 16'),
+(173, '2025-09-17 16:33:10', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 15'),
+(174, '2025-09-17 16:33:14', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 14'),
+(175, '2025-09-17 16:33:19', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 8'),
+(176, '2025-09-17 16:33:22', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 9'),
+(177, '2025-09-17 16:33:25', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 10'),
+(178, '2025-09-17 16:33:29', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 11'),
+(179, '2025-09-17 16:33:32', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 12'),
+(180, '2025-09-17 16:33:35', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 13');
 
 -- --------------------------------------------------------
 
@@ -232,14 +314,15 @@ CREATE TABLE IF NOT EXISTS `mision_genfy_sprites` (
   `imagen_url` text NOT NULL,
   `enlace` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `mision_genfy_sprites`
 --
 
 INSERT INTO `mision_genfy_sprites` (`id`, `tipo`, `imagen_url`, `enlace`) VALUES
-(8, 'medicamento', '/img/imagen-1758073287544-934798050.png', 'http://localhost/phpmyadmin/index.php?route=/sql&pos=0&db=minijuegos&table=genfy_encuentra_objetos');
+(10, 'medicamento', '/img/imagen-1758127156266-866689693.png', NULL),
+(11, 'bacteria', '/img/imagen-1758127169803-184546809.png', NULL);
 
 -- --------------------------------------------------------
 
@@ -260,7 +343,31 @@ CREATE TABLE IF NOT EXISTS `mision_genfy_sprites_paises` (
 --
 
 INSERT INTO `mision_genfy_sprites_paises` (`sprite_id`, `pais_id`) VALUES
-(8, 6);
+(10, 2),
+(11, 2);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `mision_genfy_terapias`
+--
+
+DROP TABLE IF EXISTS `mision_genfy_terapias`;
+CREATE TABLE IF NOT EXISTS `mision_genfy_terapias` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `medicamento_id` int NOT NULL,
+  `bacteria_id` int NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_terapia_unica` (`medicamento_id`,`bacteria_id`),
+  KEY `bacteria_id` (`bacteria_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `mision_genfy_terapias`
+--
+
+INSERT INTO `mision_genfy_terapias` (`id`, `medicamento_id`, `bacteria_id`) VALUES
+(2, 10, 11);
 
 -- --------------------------------------------------------
 
@@ -284,9 +391,9 @@ CREATE TABLE IF NOT EXISTS `paises` (
 --
 
 INSERT INTO `paises` (`id`, `nombre`, `genfy_pregunta_visible`, `genfy_encuentra_visible`, `mision_genfy_visible`, `ruleta_visible`) VALUES
+(2, 'Colombia', 1, 1, 1, 1),
 (3, 'Peru', 1, 1, 1, 1),
-(4, 'Ecuador', 1, 1, 1, 1),
-(6, 'Colombia', 1, 0, 1, 1);
+(4, 'Ecuador', 1, 1, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -306,14 +413,31 @@ CREATE TABLE IF NOT EXISTS `ruleta_preguntas` (
   `activa` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `tema_id` (`tema_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `ruleta_preguntas`
 --
 
 INSERT INTO `ruleta_preguntas` (`id`, `tema_id`, `pregunta`, `respuesta_correcta`, `respuesta_1`, `respuesta_2`, `respuesta_3`, `activa`) VALUES
-(33, 17, '1+1', '2', '3', '4', '5', 1);
+(34, 18, '¿Quién fue el primer emperador romano?', 'Augusto', 'Julio César', 'Nerón', 'Calígula', 1),
+(35, 18, '¿En qué año cayó el Muro de Berlín?', '1989', '1991', '1985', '1990', 1),
+(36, 18, '¿Cuál fue la capital del Imperio Azteca?', 'Tenochtitlán', 'Tulum', 'Palenque', 'Chichén Itzá', 1),
+(37, 19, '¿Cuál es el río más largo del mundo?', 'Amazonas', 'Nilo', 'Yangtsé', 'Misisipi', 1),
+(38, 19, '¿Cuál es el desierto más grande del mundo?', 'Antártico', 'Sahara', 'Gobi', 'Kalahari', 1),
+(39, 19, '¿Qué país es el más grande de Sudamérica?', 'Brasil', 'Argentina', 'Perú', 'Colombia', 1),
+(40, 20, '¿Cuál es la fórmula química del agua?', 'H2O', 'CO2', 'O2', 'NaCl', 1),
+(41, 20, '¿Qué planeta es conocido como el \"Planeta Rojo\"?', 'Marte', 'Júpiter', 'Venus', 'Saturno', 1),
+(42, 20, '¿Qué ley de la física describe que un objeto en movimiento permanece en movimiento?', 'Primera Ley de Newton', 'Segunda Ley de Newton', 'Tercera Ley de Newton', 'Ley de la gravedad', 1),
+(43, 21, '¿Quién pintó la Mona Lisa?', 'Leonardo da Vinci', 'Pablo Picasso', 'Vincent van Gogh', 'Miguel Ángel', 1),
+(44, 21, '¿En qué ciudad se encuentra el museo del Louvre?', 'París', 'Roma', 'Londres', 'Madrid', 1),
+(45, 21, '¿Cuál es el nombre de la famosa obra de teatro de William Shakespeare sobre un príncipe danés?', 'Hamlet', 'Romeo y Julieta', 'Macbeth', 'Otelo', 1),
+(46, 22, '¿Cuántos jugadores hay en un equipo de fútbol?', '11', '9', '10', '12', 1),
+(47, 22, '¿Dónde se inventó el baloncesto?', 'Estados Unidos', 'Canadá', 'Reino Unido', 'China', 1),
+(48, 22, '¿Qué país ha ganado más Copas del Mundo de fútbol?', 'Brasil', 'Alemania', 'Italia', 'Argentina', 1),
+(49, 23, '¿Quién es conocido como \"El Rey del Pop\"?', 'Michael Jackson', 'Elvis Presley', 'Madonna', 'Prince', 1),
+(50, 23, '¿Cuál es el instrumento principal en un cuarteto de cuerdas?', 'Violín', 'Guitarra', 'Piano', 'Flauta', 1),
+(51, 23, '¿De qué país es originario el género musical Reggae?', 'Jamaica', 'Cuba', 'Brasil', 'Colombia', 1);
 
 -- --------------------------------------------------------
 
@@ -334,7 +458,24 @@ CREATE TABLE IF NOT EXISTS `ruleta_preguntas_paises` (
 --
 
 INSERT INTO `ruleta_preguntas_paises` (`pregunta_id`, `pais_id`) VALUES
-(33, 6);
+(34, 2),
+(35, 2),
+(36, 2),
+(37, 2),
+(38, 2),
+(39, 2),
+(40, 2),
+(41, 2),
+(42, 2),
+(43, 2),
+(44, 2),
+(45, 2),
+(46, 2),
+(47, 2),
+(48, 2),
+(49, 2),
+(50, 2),
+(51, 2);
 
 -- --------------------------------------------------------
 
@@ -349,14 +490,19 @@ CREATE TABLE IF NOT EXISTS `ruleta_temas` (
   `color` varchar(7) NOT NULL DEFAULT '#3498db',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `ruleta_temas`
 --
 
 INSERT INTO `ruleta_temas` (`id`, `nombre`, `color`, `activo`) VALUES
-(17, 'toxicologia', '#3498db', 1);
+(18, 'Historia', '#e74c3c', 1),
+(19, 'Geografía', '#3498db', 1),
+(20, 'Ciencia', '#2ecc71', 1),
+(21, 'Arte y Cultura', '#f39c12', 1),
+(22, 'Deportes', '#9b59b6', 1),
+(23, 'Música', '#1abc9c', 1);
 
 -- --------------------------------------------------------
 
@@ -418,6 +564,13 @@ ALTER TABLE `genfy_pregunta_paises`
 ALTER TABLE `mision_genfy_sprites_paises`
   ADD CONSTRAINT `mision_genfy_sprites_paises_ibfk_1` FOREIGN KEY (`sprite_id`) REFERENCES `mision_genfy_sprites` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `mision_genfy_sprites_paises_ibfk_2` FOREIGN KEY (`pais_id`) REFERENCES `paises` (`id`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `mision_genfy_terapias`
+--
+ALTER TABLE `mision_genfy_terapias`
+  ADD CONSTRAINT `mision_genfy_terapias_ibfk_1` FOREIGN KEY (`medicamento_id`) REFERENCES `mision_genfy_sprites` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `mision_genfy_terapias_ibfk_2` FOREIGN KEY (`bacteria_id`) REFERENCES `mision_genfy_sprites` (`id`) ON DELETE CASCADE;
 
 --
 -- Filtros para la tabla `ruleta_preguntas`

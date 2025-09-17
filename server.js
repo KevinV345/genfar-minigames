@@ -717,91 +717,68 @@ app.delete("/api/sprites/:id", auth(true), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
-
 app.get("/api/spritesUnity/:paisId", async (req, res) => {
   try {
-    const { paisId } = req.params
+    const { paisId } = req.params;
 
-    // Get all sprites for the country
-    const [sprites] = await pool.query(
-      `SELECT s.id, s.tipo, s.imagen_url, s.enlace
-        FROM mision_genfy_sprites s
-        JOIN mision_genfy_sprites_paises sp ON s.id = sp.sprite_id
-        WHERE sp.pais_id = ?
-        ORDER BY s.tipo ASC, s.id ASC`,
-      [paisId],
-    )
-
-    if (sprites.length === 0) {
-      return res.status(404).json({ error: "No se encontraron sprites para el país especificado." })
-    }
-
-    // Get therapy associations
+    // Get therapy associations for the given country
     const [terapias] = await pool.query(
-      `SELECT t.medicamento_id, t.bacteria_id
-        FROM mision_genfy_terapias t
-        JOIN mision_genfy_sprites_paises sp1 ON t.medicamento_id = sp1.sprite_id
-        JOIN mision_genfy_sprites_paises sp2 ON t.bacteria_id = sp2.sprite_id
-        WHERE sp1.pais_id = ? AND sp2.pais_id = ?`,
-      [paisId, paisId],
-    )
+      `
+      SELECT
+        t.medicamento_id,
+        t.bacteria_id,
+        sm.imagen_url AS medicamento_imagen,
+        sm.enlace AS medicamento_enlace,
+        sb.imagen_url AS bacteria_imagen,
+        sb.enlace AS bacteria_enlace
+      FROM mision_genfy_terapias t
+      JOIN mision_genfy_sprites sm ON t.medicamento_id = sm.id
+      JOIN mision_genfy_sprites sb ON t.bacteria_id = sb.id
+      JOIN mision_genfy_sprites_paises spm ON sm.id = spm.sprite_id
+      JOIN mision_genfy_sprites_paises spb ON sb.id = spb.sprite_id
+      WHERE spm.pais_id = ? AND spb.pais_id = ?
+      `,
+      [paisId, paisId]
+    );
 
-    // Separate sprites by type
-    const spritesMedicamento = sprites.filter((s) => s.tipo === "medicamento")
-    const spritesBacteria = sprites.filter((s) => s.tipo === "bacteria")
-
-    // Create therapy pairs and remaining sprites
-    const medicamentoArray = []
-    const bacteriaArray = []
-    const usedMedicamentos = new Set()
-    const usedBacterias = new Set()
-
-    // First, add therapy pairs maintaining same index
-    terapias.forEach((terapia) => {
-      const medicamento = spritesMedicamento.find((s) => s.id === terapia.medicamento_id)
-      const bacteria = spritesBacteria.find((s) => s.id === terapia.bacteria_id)
-
-      if (medicamento && bacteria) {
-        const { tipo: tipoMed, ...medicamentoData } = medicamento
-        const { tipo: tipoBac, ...bacteriaData } = bacteria
-
-        medicamentoArray.push(medicamentoData)
-        bacteriaArray.push(bacteriaData)
-        usedMedicamentos.add(medicamento.id)
-        usedBacterias.add(bacteria.id)
-      }
-    })
-
-    // Fill remaining slots with unpaired sprites
-    const remainingMedicamentos = spritesMedicamento.filter((s) => !usedMedicamentos.has(s.id))
-    const remainingBacterias = spritesBacteria.filter((s) => !usedBacterias.has(s.id))
-
-    // Function to fill array to exactly 6 elements
-    const fillToSix = (targetArray, sourceArray) => {
-      while (targetArray.length < 6) {
-        if (sourceArray.length === 0) break
-
-        const sprite = sourceArray[targetArray.length % sourceArray.length]
-        const { tipo, ...spriteData } = sprite
-        targetArray.push(spriteData)
-      }
-
-      // Ensure exactly 6 elements
-      return targetArray.slice(0, 6)
+    if (terapias.length === 0) {
+      return res.status(404).json({ error: "No se encontraron terapias válidas para el país especificado." });
     }
 
-    const finalMedicamentos = fillToSix([...medicamentoArray], remainingMedicamentos)
-    const finalBacterias = fillToSix([...bacteriaArray], remainingBacterias)
+    // Create the initial paired arrays
+    const medicamentoArray = terapias.map((t) => ({
+      id: t.medicamento_id,
+      imagen_url: t.medicamento_imagen,
+      enlace: t.medicamento_enlace,
+    }));
+    const bacteriaArray = terapias.map((t) => ({
+      id: t.bacteria_id,
+      imagen_url: t.bacteria_imagen,
+      enlace: t.bacteria_enlace,
+    }));
 
-    res.json({
-      medicamento: finalMedicamentos,
-      bacteria: finalBacterias,
-    })
+    // Function to ensure a minimum of 6 pairs
+    const getFinalArrays = (medicamentos, bacterias) => {
+      const finalMedicamentos = [];
+      const finalBacterias = [];
+      const numPairs = medicamentos.length;
+
+      for (let i = 0; i < 6; i++) {
+        const index = i % numPairs;
+        finalMedicamentos.push(medicamentos[index]);
+        finalBacterias.push(bacterias[index]);
+      }
+      return { medicamento: finalMedicamentos, bacteria: finalBacterias };
+    };
+
+    const finalResult = getFinalArrays(medicamentoArray, bacteriaArray);
+
+    res.json(finalResult);
   } catch (error) {
-    console.error("Error al obtener sprites para Unity:", error)
-    res.status(500).json({ error: "Error del servidor" })
+    console.error("Error al obtener sprites para Unity:", error);
+    res.status(500).json({ error: "Error del servidor" });
   }
-})
+});
 app.post("/api/escenarios", auth(true), upload.single("imagen"), async (req, res) => {
   try {
     console.log("[v0] Creating escenario - body:", req.body)
@@ -973,6 +950,61 @@ app.get("/api/escenariosUnity/:paisId", async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
+// Este endpoint obtiene todas las preguntas para un país específico, agrupadas por tema.
+app.get("/api/ruletaUnity/:paisId", async (req, res) => {
+  try {
+    const { paisId } = req.params;
+
+    // Consulta la base de datos para obtener las preguntas, uniéndolas con temas y países.
+    // Solo se seleccionan las preguntas activas para ese país.
+    const [questions] = await pool.query(
+      `SELECT
+        rp.*,
+        rt.nombre AS tema_nombre,
+        rt.color,
+        rt.activo AS tema_activo
+       FROM ruleta_preguntas_paises rpp
+       JOIN ruleta_preguntas rp ON rpp.pregunta_id = rp.id
+       JOIN ruleta_temas rt ON rp.tema_id = rt.id
+       WHERE rpp.pais_id = ? AND rt.activo = 1`,
+      [paisId]
+    );
+
+    if (questions.length === 0) {
+      return res.status(404).json({ error: "No se encontraron preguntas para este país." });
+    }
+
+    // Agrupa las preguntas por tema, tal como lo espera el cliente Unity.
+    const groupedQuestions = questions.reduce((acc, current) => {
+      const { tema_id, tema_nombre, color, ...preguntaData } = current;
+      if (!acc[tema_id]) {
+        acc[tema_id] = {
+          id: tema_id,
+          nombre: tema_nombre,
+          color: color,
+          preguntas: [],
+        };
+      }
+      acc[tema_id].preguntas.push({
+        id: preguntaData.id,
+        pregunta: preguntaData.pregunta,
+        correcta: preguntaData.respuesta_correcta,
+        respuesta1: preguntaData.respuesta_1,
+        respuesta2: preguntaData.respuesta_2,
+        respuesta3: preguntaData.respuesta_3,
+      });
+      return acc;
+    }, {});
+
+    // Convierte el objeto a un array de temas para la respuesta final.
+    const finalResponse = Object.values(groupedQuestions);
+
+    res.json(finalResponse);
+  } catch (error) {
+    console.error("Error al obtener las preguntas de la ruleta:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
 
 app.get("/api/terapias", async (req, res) => {
   try {
