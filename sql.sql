@@ -3,12 +3,10 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1:3306
--- Tiempo de generación: 17-09-2025 a las 21:47:43
+-- Tiempo de generación: 18-09-2025 a las 22:27:06
 -- Versión del servidor: 9.1.0
 -- Versión de PHP: 8.3.14
-drop database if exists minijuegos;
-CREATE database minijuegos;
-use minijuegos;
+
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
@@ -191,7 +189,7 @@ CREATE TABLE IF NOT EXISTS `logs_cambios` (
   `accion` varchar(255) NOT NULL,
   `detalle` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=181 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=183 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `logs_cambios`
@@ -301,7 +299,9 @@ INSERT INTO `logs_cambios` (`id`, `fecha`, `accion`, `detalle`) VALUES
 (177, '2025-09-17 16:33:25', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 10'),
 (178, '2025-09-17 16:33:29', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 11'),
 (179, '2025-09-17 16:33:32', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 12'),
-(180, '2025-09-17 16:33:35', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 13');
+(180, '2025-09-17 16:33:35', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 13'),
+(181, '2025-09-18 21:04:35', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos'),
+(182, '2025-09-18 21:27:27', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos');
 
 -- --------------------------------------------------------
 
@@ -313,18 +313,24 @@ DROP TABLE IF EXISTS `mision_genfy_sprites`;
 CREATE TABLE IF NOT EXISTS `mision_genfy_sprites` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tipo` enum('medicamento','bacteria') NOT NULL,
+  `nombre_terapia` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `imagen_url` text NOT NULL,
   `enlace` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `mision_genfy_sprites`
 --
 
-INSERT INTO `mision_genfy_sprites` (`id`, `tipo`, `imagen_url`, `enlace`) VALUES
-(10, 'medicamento', '/img/imagen-1758127156266-866689693.png', NULL),
-(11, 'bacteria', '/img/imagen-1758127169803-184546809.png', NULL);
+INSERT INTO `mision_genfy_sprites` (`id`, `tipo`, `nombre_terapia`, `imagen_url`, `enlace`) VALUES
+(10, 'medicamento', '', '/img/imagen-1758127156266-866689693.png', NULL),
+(12, 'bacteria', 'Sistema Respiratorio', '/img/imagen-1758231105121-845240041.png', NULL),
+(13, 'bacteria', 'Analgesicos y antiinflamatorios', '/img/imagen-1758231112773-624301254.png', NULL),
+(14, 'bacteria', 'Sistema Nervioso', '/img/imagen-1758231125911-140474843.png', NULL),
+(15, 'bacteria', 'Vitaminas', '/img/imagen-1758231138542-768432554.png', NULL),
+(16, 'bacteria', 'Sistema Cardiovascular', '/img/imagen-1758231148750-9282457.png', NULL),
+(17, 'bacteria', 'Sistema Digestivo', '/img/imagen-1758231160401-923280378.png', NULL);
 
 -- --------------------------------------------------------
 
@@ -346,7 +352,13 @@ CREATE TABLE IF NOT EXISTS `mision_genfy_sprites_paises` (
 
 INSERT INTO `mision_genfy_sprites_paises` (`sprite_id`, `pais_id`) VALUES
 (10, 2),
-(11, 2);
+(12, 2),
+(13, 2),
+(14, 2),
+(15, 2),
+(16, 2),
+(17, 2),
+(10, 4);
 
 -- --------------------------------------------------------
 
@@ -362,14 +374,15 @@ CREATE TABLE IF NOT EXISTS `mision_genfy_terapias` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_terapia_unica` (`medicamento_id`,`bacteria_id`),
   KEY `bacteria_id` (`bacteria_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `mision_genfy_terapias`
 --
 
 INSERT INTO `mision_genfy_terapias` (`id`, `medicamento_id`, `bacteria_id`) VALUES
-(2, 10, 11);
+(3, 10, 16),
+(4, 10, 17);
 
 -- --------------------------------------------------------
 
