@@ -756,7 +756,6 @@ function showTerapiaForm() {
       bacteriaPreview.innerHTML = `
         <div class="sprite-card">
           <img class="sprite-thumbnail" src="${selectedOption.dataset.imagen}" alt="Bacteria" />
-          <p><strong>Países:</strong> ${selectedOption.dataset.paises || "Sin asignar"}</p>
         </div>
       `
     } else {
