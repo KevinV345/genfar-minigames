@@ -723,7 +723,9 @@ function showTerapiaForm() {
         compatibleBacterias.forEach((b) => {
           const option = document.createElement("option")
           option.value = b.id
-          option.textContent = `${b.nombre || `ID: ${b.id}`} - Países: ${b.paises_nombres || "Sin asignar"}`
+          console.log(b);
+          
+          option.textContent = `${b.nombre_terapia}`
           option.dataset.imagen = b.imagen_url
           option.dataset.paises = b.paises_nombres || ""
           bacteriaSelect.appendChild(option)
