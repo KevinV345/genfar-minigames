@@ -642,6 +642,8 @@ async function deleteObject(objectId, escenarioId) {
 
 async function loadSprites() {
   currentData.sprites = await apiRequest("/sprites")
+  
+  
   renderSpritesTable(currentData.sprites)
 }
 
@@ -709,8 +711,7 @@ function showTerapiaForm() {
     if (selectedMedicamento) {
       const medicamentoPaises = selectedMedicamento.paises_nombres || ""
       const compatibleBacterias = bacterias.filter((b) => {
-        const bacteriaPaises = b.paises_nombres || ""
-        return bacteriaPaises === medicamentoPaises
+        return 1
       })
 
       if (compatibleBacterias.length === 0) {
@@ -736,7 +737,7 @@ function showTerapiaForm() {
     if (selectedOption && selectedOption.dataset.imagen) {
       medicamentoPreview.innerHTML = `
         <div class="sprite-card">
-          <img src="${selectedOption.dataset.imagen}" alt="Medicamento" />
+          <img class="sprite-thumbnail" src="${selectedOption.dataset.imagen}" alt="Medicamento" />
           <p><strong>Países:</strong> ${selectedOption.dataset.paises || "Sin asignar"}</p>
         </div>
       `
@@ -752,7 +753,7 @@ function showTerapiaForm() {
     if (selectedOption && selectedOption.dataset.imagen) {
       bacteriaPreview.innerHTML = `
         <div class="sprite-card">
-          <img src="${selectedOption.dataset.imagen}" alt="Bacteria" />
+          <img class="sprite-thumbnail" src="${selectedOption.dataset.imagen}" alt="Bacteria" />
           <p><strong>Países:</strong> ${selectedOption.dataset.paises || "Sin asignar"}</p>
         </div>
       `
@@ -785,8 +786,16 @@ async function deleteTerapia(id) {
     showMessage(`Error al eliminar terapia: ${error.message}`, "error")
   }
 }
-
+function Asociar_terapia(id) {
+  showTerapiasSection()
+  showTerapiaForm()
+  document.getElementById("medicamentoSelect").value=id
+  document.getElementById("medicamentoSelect").dispatchEvent(new Event('change'));
+}
 function renderSpritesTable(sprites) {
+
+  sprites=sprites.filter(e=>e.tipo!="bacteria")
+
   const tbody = document.querySelector("#spritesTable tbody")
   tbody.innerHTML = sprites
     .map(
@@ -801,6 +810,7 @@ function renderSpritesTable(sprites) {
       </td>
       <td class="admin-only">
         <button class="btn btn-warning btn-small" onclick="editSprite(${s.id})">Editar</button>
+        <button class="btn btn-warning btn-small" onclick="Asociar_terapia(${s.id})">Asociar terapia</button>
         <button class="btn btn-danger btn-small" onclick="deleteSprite(${s.id})">Eliminar</button>
       </td>
     </tr>
@@ -1484,17 +1494,13 @@ function renderTerapiasTable(terapias) {
           <img src="${terapia.medicamento_imagen}" alt="Medicamento" class="sprite-thumbnail" />
           <div>
             <strong>${medicamentoName}</strong><br>
-            <small>Países: ${terapia.medicamento_paises || "Sin asignar"}</small>
+            <small>Países: ${terapia.paises_medicamento || "Sin asignar"}</small>
           </div>
         </div>
       </td>
       <td>
         <div class="sprite-info">
           <img src="${terapia.bacteria_imagen}" alt="Bacteria" class="sprite-thumbnail" />
-          <div>
-            <strong>${bacteriaName}</strong><br>
-            <small>Países: ${terapia.bacteria_paises || "Sin asignar"}</small>
-          </div>
         </div>
       </td>
       <td>

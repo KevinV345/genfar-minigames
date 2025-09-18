@@ -1009,17 +1009,21 @@ app.get("/api/ruletaUnity/:paisId", async (req, res) => {
 app.get("/api/terapias", async (req, res) => {
   try {
     const [terapias] = await pool.query(
-      `SELECT
-         t.id,
-         t.medicamento_id,
-         t.bacteria_id,
-         med_sprite.imagen_url AS medicamento_imagen,
-         bac_sprite.imagen_url AS bacteria_imagen
-       FROM mision_genfy_terapias t
-       LEFT JOIN mision_genfy_sprites AS med_sprite ON t.medicamento_id = med_sprite.id
-       LEFT JOIN mision_genfy_sprites AS bac_sprite ON t.bacteria_id = bac_sprite.id
-       ORDER BY t.id`
-    );
+  `SELECT
+      t.id,
+      t.medicamento_id,
+      t.bacteria_id,
+      med_sprite.imagen_url AS medicamento_imagen,
+      bac_sprite.imagen_url AS bacteria_imagen,
+      GROUP_CONCAT(DISTINCT p.nombre SEPARATOR ', ') AS paises_medicamento
+   FROM mision_genfy_terapias t
+   LEFT JOIN mision_genfy_sprites AS med_sprite ON t.medicamento_id = med_sprite.id
+   LEFT JOIN mision_genfy_sprites AS bac_sprite ON t.bacteria_id = bac_sprite.id
+   LEFT JOIN mision_genfy_sprites_paises AS msp ON t.medicamento_id = msp.sprite_id
+   LEFT JOIN paises AS p ON msp.pais_id = p.id
+   GROUP BY t.id
+   ORDER BY t.id`
+);
     res.json(terapias);
   } catch (error) {
     console.error("Error al obtener terapias:", error);
