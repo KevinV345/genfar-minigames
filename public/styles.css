@@ -878,7 +878,8 @@ small {
     background-color: #ef4444;
     color: white;
 }
-.sprite-thumbnail{
+.sprite-thumbnail {
     width: 5vw;
-    height: auto;
+    height: 5vw;
+    object-fit: contain;
 }
