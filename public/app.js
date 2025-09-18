@@ -1025,10 +1025,8 @@ function showSpriteForm(sprite = null) {
         <small>Mantén Ctrl (o Cmd en Mac) para seleccionar varios.</small>
       </div>
       <div class="form-group">
-        <label for="spriteTipo">Tipo:</label>
-        <select id="spriteTipo" required onchange="toggleEnlaceField()">
+        <select style="display:none;" id="spriteTipo" required onchange="toggleEnlaceField()">
           <option value="medicamento" ${isEdit && sprite.tipo === "medicamento" ? "selected" : ""}>Medicamento</option>
-          <option value="bacteria" ${isEdit && sprite.tipo === "bacteria" ? "selected" : ""}>Bacteria</option>
         </select>
       </div>
       <div class="form-group">
@@ -1038,7 +1036,7 @@ function showSpriteForm(sprite = null) {
         ${isEdit ? `<p class="current-image">Imagen actual: <img src="${sprite.imagen_url}" style="max-width: 100px; max-height: 100px;"></p>` : ""}
       </div>
       <div class="form-group" id="enlaceGroup" style="display: ${isEdit && sprite.tipo === "medicamento" ? "block" : isEdit ? "none" : "block"};">
-        <label for="spriteEnlace">Enlace (solo para medicamentos):</label>
+        <label for="spriteEnlace">Enlace</label>
         <input type="url" id="spriteEnlace" value="${isEdit ? sprite.enlace || "" : ""}" placeholder="https://ejemplo.com">
         <small>URL relacionada con este medicamento</small>
       </div>
