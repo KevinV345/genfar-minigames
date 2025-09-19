@@ -1008,7 +1008,7 @@ function showPreguntaForm(pregunta = null) {
 
 function showSpriteForm(sprite = null) {
   const isEdit = !!sprite
-  const title = isEdit ? "Editar Sprite" : "Agregar Sprite"
+  const title = isEdit ? "Editar Producto" : "Agregar Producto"
   const selectedPaises = isEdit && sprite.paises_ids ? sprite.paises_ids.split(",") : []
 
   const paisesOptions = currentData.paises
