@@ -259,10 +259,10 @@ app.delete("/api/usuarios/:id", auth(true), async (req, res) => {
   }
 })
 
-app.get("/api/paises", auth(), async (req, res) => {
+app.get("/api/paises", async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT id, nombre, 
+      SELECT id, nombre, img,
              genfy_pregunta_visible, 
              genfy_encuentra_visible, 
              mision_genfy_visible, 
@@ -647,6 +647,26 @@ app.get("/api/sprites", async (req, res) => {
        LEFT JOIN paises p ON sp.pais_id = p.id 
        GROUP BY s.id
        ORDER BY s.id DESC`,
+    )
+    res.json(rows)
+  } catch (error) {
+    res.status(500).json({ error: "Error del servidor" })
+  }
+})
+app.get("/api/sprites/:pais_id", async (req, res) => {
+  const { pais_id } = req.params
+  try {
+    const [rows] = await pool.query(
+      `SELECT s.*, 
+              GROUP_CONCAT(p.nombre SEPARATOR ', ') as paises_nombres,
+              GROUP_CONCAT(p.id SEPARATOR ',') as paises_ids
+       FROM mision_genfy_sprites s 
+       LEFT JOIN mision_genfy_sprites_paises sp ON s.id = sp.sprite_id
+       LEFT JOIN paises p ON sp.pais_id = p.id 
+       WHERE sp.pais_id = ?
+       GROUP BY s.id
+       ORDER BY s.id DESC`,
+      [pais_id]
     )
     res.json(rows)
   } catch (error) {
