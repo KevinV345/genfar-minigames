@@ -164,7 +164,7 @@ body {
 
 /* Header - Simplificado sin elementos eliminados */
 .main-header {
-    display: flex;
+    
     justify-content: space-between;
     align-items: center;
     margin-bottom: 32px;
@@ -176,6 +176,9 @@ body {
 }
 
 /* Agregando botón hamburguesa al header */
+.main-header{
+    display: none;
+}
 .mobile-menu-toggle {
     display: none;
     width: 44px;
@@ -549,13 +552,18 @@ body.admin .section.admin-only.active {
 .sidebar-overlay.active {
     display: block;
 }
-
+.submenu-item{
+    margin-left: 10%;
+}
 /* Responsive */
 @media (max-width: 1024px) {
 
     /* Mostrando botón toggle en móviles */
     .mobile-menu-toggle {
         display: flex !important;
+    }
+    .main-header{
+        display: flex;
     }
 
     .sidebar {

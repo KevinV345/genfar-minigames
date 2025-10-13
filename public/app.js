@@ -255,7 +255,6 @@ async function loadPaises() {
     .map(
       (pais) => `
     <tr>
-      <td>${pais.id}</td>
       <td>${pais.nombre}</td>
       <td class="admin-only">
         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
@@ -286,7 +285,6 @@ function renderPreguntasTable(preguntas) {
     .map(
       (p) => `
     <tr>
-      <td>${p.id}</td>
       <td>${p.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td>${p.pregunta.substring(0, 50)}...</td>
       <td>${p.respuesta_correcta}</td>
@@ -406,7 +404,6 @@ function renderEscenariosTable(scenarios) {
     .map(
       (esc) => `
     <tr>
-      <td>${esc.id}</td>
       <td>${esc.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td><img src="${esc.imagen_fondo}" alt="Fondo" style="width: 50px; height: auto;"></td>
       <td>
@@ -443,7 +440,6 @@ async function manageObjects(escenarioId, escenarioName) {
               (obj) => `
             <div class="object-item">
               <img src="${obj.imagen_objetivo}" style="max-width: 50px; max-height: 50px;">
-              <span>Orden: ${obj.orden}</span>
               <button class="btn btn-warning btn-small" onclick="editObject(${obj.id})">Editar</button>
               <button class="btn btn-danger btn-small" onclick="deleteObject(${obj.id}, ${escenarioId})">Eliminar</button>
               <button class="btn btn-info btn-small" onclick="editObjectColliders(${obj.id}, ${escenarioId})">Colliders</button>
@@ -802,7 +798,6 @@ function renderSpritesTable(sprites) {
     .map(
       (s) => `
     <tr>
-      <td>${s.id}</td>
       <td>${s.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td>${s.tipo}</td>
       <td><img src="${s.imagen_url}" alt="Sprite" style="max-width: 50px; max-height: 50px;"></td>
@@ -828,7 +823,6 @@ async function loadUsuarios() {
     .map(
       (u) => `
     <tr>
-      <td>${u.id}</td>
       <td>${u.nombre}</td>
       <td>${u.correo}</td>
       <td>${u.es_admin ? "Sí" : "No"}</td>
@@ -850,7 +844,6 @@ async function loadLogs() {
     .map(
       (log) => `
     <tr>
-      <td>${log.id}</td>
       <td>${new Date(log.fecha).toLocaleString()}</td>
       <td>${log.accion}</td>
       <td>${log.detalle || "N/A"}</td>
@@ -1098,6 +1091,9 @@ function showSpriteForm(sprite = null) {
 function showPaisForm(pais = null) {
   const isEdit = !!pais
   const title = isEdit ? "Editar País" : "Agregar País"
+  // Asume que las imágenes se sirven desde /img/ y que pais.img contiene el nombre del archivo.
+  const currentImageFilename = pais?.img || 'def.png';
+  const currentImageUrl = `/img/${currentImageFilename}`;
 
   const content = `
     <form id="paisForm">
@@ -1105,7 +1101,17 @@ function showPaisForm(pais = null) {
         <label for="paisNombre">Nombre del País:</label>
         <input type="text" id="paisNombre" value="${isEdit ? pais.nombre : ""}" required>
       </div>
-      
+
+      <div class="form-group">
+        <label for="paisImagen">Imagen (bandera/ícono):</label>
+        <input type="file" id="paisImagen" accept="image/*" ${!isEdit ? "" : ""}>
+        <small>Selecciona una nueva imagen para subir. Deja vacío para mantener la actual.</small>
+        ${isEdit && currentImageFilename !== 'def.png' ? 
+          `<p class="current-image">Imagen actual: <img src="${currentImageUrl}" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;"></p>` : 
+          (isEdit ? `<small>Usando imagen por defecto: def.png</small>` : '')
+        }
+      </div>
+
       <div class="form-group">
         <label>Visibilidad de Minijuegos:</label>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
@@ -1127,7 +1133,7 @@ function showPaisForm(pais = null) {
           </div>
         </div>
       </div>
-      
+
       <div class="form-buttons">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">${isEdit ? "Actualizar" : "Crear"}</button>
@@ -1138,15 +1144,34 @@ function showPaisForm(pais = null) {
 
   document.getElementById("paisForm").onsubmit = async (e) => {
     e.preventDefault()
-    const formData = {
-      nombre: document.getElementById("paisNombre").value,
-      genfy_pregunta_visible: document.getElementById("genfyPreguntaVisible").checked,
-      genfy_encuentra_visible: document.getElementById("genfyEncuentraVisible").checked,
-      mision_genfy_visible: document.getElementById("misionGenfyVisible").checked,
-      ruleta_visible: document.getElementById("ruletaVisible").checked,
-    }
+
+    const fileInput = document.getElementById("paisImagen")
+    let imageFilename = isEdit ? pais.img : "def.png" // Nombre de archivo por defecto o actual
 
     try {
+      // 1. Manejar la carga de la imagen si se selecciona una nueva
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0]
+        const uploadData = new FormData()
+        uploadData.append('image', file) // 'image' debe coincidir con el campo esperado por 'upload.single("image")'
+
+        // USAMOS TU apiRequest para el upload, pasando true para isFormData
+        const uploadResult = await apiRequest("/upload", "POST", uploadData, true);
+        
+        imageFilename = uploadResult.filename // Obtener el nuevo nombre de archivo
+      }
+
+      // 2. Preparar los datos del país incluyendo el nombre del archivo de la imagen
+      const formData = {
+        nombre: document.getElementById("paisNombre").value,
+        img: imageFilename, // Usar el nombre del archivo subido o el actual/por defecto
+        genfy_pregunta_visible: document.getElementById("genfyPreguntaVisible").checked,
+        genfy_encuentra_visible: document.getElementById("genfyEncuentraVisible").checked,
+        mision_genfy_visible: document.getElementById("misionGenfyVisible").checked,
+        ruleta_visible: document.getElementById("ruletaVisible").checked,
+      }
+
+      // 3. Crear o actualizar el país (también con apiRequest)
       if (isEdit) {
         await apiRequest(`/paises/${pais.id}`, "PUT", formData)
       } else {
@@ -1155,10 +1180,12 @@ function showPaisForm(pais = null) {
 
       closeModal()
       await loadPaises()
-      alert("País " + (isEdit ? "actualizado" : "creado") + " exitosamente")
+      // Uso de console.log en lugar de alert()
+      console.log("País " + (isEdit ? "actualizado" : "creado") + " exitosamente")
     } catch (error) {
       console.error("[v0] Error in pais form:", error)
-      alert("Error: " + error.message)
+      // Usando console.error para mostrar el error al usuario en un entorno de desarrollo
+      console.error("Error: " + error.message)
     }
   }
 }
@@ -1487,12 +1514,10 @@ function renderTerapiasTable(terapias) {
     const bacteriaName = terapia.bacteria_nombre || `ID: ${terapia.bacteria_id}`
 
     row.innerHTML = `
-      <td>${terapia.id}</td>
       <td>
         <div class="sprite-info">
           <img src="${terapia.medicamento_imagen}" alt="Medicamento" class="sprite-thumbnail" />
-          <div>
-            <strong>${medicamentoName}</strong><br>
+          <div><br>
             <small>Países: ${terapia.paises_medicamento || "Sin asignar"}</small>
           </div>
         </div>
@@ -1534,6 +1559,10 @@ function showUsuarioForm(usuario = null) {
         <input type="email" id="usuarioCorreo" value="${isEdit ? usuario.correo : ""}" required>
       </div>
       <div class="form-group">
+        <label for="password">Contraseña del Usuario:</label>
+        <input type="text" id="password" value="" required>
+      </div>
+      <div class="form-group">
         <label for="usuarioAdmin">Es Administrador:</label>
         <input type="checkbox" id="usuarioAdmin" ${isEdit ? (usuario.es_admin ? "checked" : "") : ""}>
       </div>
@@ -1551,6 +1580,7 @@ function showUsuarioForm(usuario = null) {
       nombre: document.getElementById("usuarioNombre").value,
       correo: document.getElementById("usuarioCorreo").value,
       es_admin: document.getElementById("usuarioAdmin").checked,
+      contrasena:document.getElementById("password").value
     }
 
     try {
@@ -1578,7 +1608,6 @@ function renderRuletaTemasTable(temas) {
     .map(
       (tema) => `
     <tr>
-      <td>${tema.id}</td>
       <td>${tema.nombre}</td>
       <td class="admin-only">
         <button class="btn btn-warning btn-small" onclick="editRuletaTema(${tema.id})">Editar</button>
@@ -1601,7 +1630,7 @@ function renderRuletaPreguntasTable(preguntas) {
     .map(
       (p) => `
     <tr>
-      <td>${p.id}</td>
+      <td>${p.tema_nombre}</td>
       <td>${p.paises_nombres || "<em>Sin Asignar</em>"}</td>
       <td>${p.pregunta.substring(0, 50)}...</td>
       <td>${p.respuesta_correcta}</td>
@@ -1871,8 +1900,9 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   })
 
-  document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
-    toggle.addEventListener("click", (e) => {
+  document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
+    
+    function submenu_toggle(e) {
       e.preventDefault()
       const submenuId = toggle.dataset.submenu + "-submenu"
       const submenu = document.getElementById(submenuId)
@@ -1887,9 +1917,20 @@ document.addEventListener("DOMContentLoaded", () => {
         arrow.style.transform = "rotate(90deg)"
         toggle.classList.add("active")
       }
-    })
-  })
+    }
 
+    toggle.addEventListener("click", submenu_toggle)
+    toggle.click()
+    toggle.click()
+
+  })
+
+
+
+
+  
+  
+  
   document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
     item.addEventListener("click", (e) => {
       if (!item.classList.contains("submenu-toggle")) {

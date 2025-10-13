@@ -192,24 +192,53 @@ app.get("/api/usuarios", auth(true), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
+// server.js
 
 app.post("/api/usuarios", auth(true), async (req, res) => {
+  console.log("--- INICIO CREACIÓN DE USUARIO ---")
   try {
     const { nombre, correo, contrasena, es_admin } = req.body
+    
+    // Log 1: Mostrar los datos recibidos (EXCEPTO la contraseña)
+    console.log("Datos recibidos:", { nombre, correo, es_admin, contrasena_existe: !!contrasena, longitud_contrasena: contrasena ? contrasena.length : 0 })
+
+    if (!contrasena) {
+      console.error("Error de validación: Contraseña faltante o vacía.")
+      return res.status(400).json({ error: "La contraseña es un campo requerido." })
+    }
+
+    // Log 2: Indicar que el hasheo va a comenzar
+    console.log("Iniciando hasheo de contraseña...")
     const hash = await bcrypt.hash(contrasena, 10)
+    console.log("Hasheo completado. Hash generado (primeros 10 chars):", hash.substring(0, 10) + "...")
+
+    // Log 3: Indicar que la consulta SQL va a comenzar
+    console.log("Iniciando consulta a la base de datos...")
     const [result] = await pool.query(
       "INSERT INTO usuarios (nombre, correo, contrasena_hash, es_admin) VALUES (?,?,?,?)",
       [nombre, correo, hash, es_admin ? 1 : 0],
     )
+    
+    // Log 4: Éxito
+    console.log("Usuario insertado con ID:", result.insertId)
+    
     const usuario = await getUserInfo(req.user.id)
     await logChange("agregó un nuevo usuario", `Usuario: ${nombre} (${correo}) - Sistema de administración`, usuario)
+    
+    console.log("--- FIN CREACIÓN DE USUARIO (Éxito) ---")
     res.json({ mensaje: "Usuario creado", id: result.insertId })
+    
   } catch (error) {
+    // Log 5: Capturar y mostrar el error específico
+    console.error("Error en la creación del usuario:", error.message || error)
+    console.error("Código de error (si existe):", error.code)
+    
     if (error.code === "ER_DUP_ENTRY") {
       res.status(400).json({ error: "El correo ya está registrado" })
     } else {
-      res.status(500).json({ error: "Error del servidor" })
+      res.status(500).json({ error: "Error del servidor. Consulte los logs para más detalles." })
     }
+    console.log("--- FIN CREACIÓN DE USUARIO (Fallo) ---")
   }
 })
 
@@ -299,6 +328,7 @@ app.post("/api/paises", auth(true), async (req, res) => {
   try {
     const {
       nombre,
+      img = "def.png", // Incluido el nuevo campo 'img'
       genfy_pregunta_visible = true,
       genfy_encuentra_visible = true,
       mision_genfy_visible = true,
@@ -307,41 +337,47 @@ app.post("/api/paises", auth(true), async (req, res) => {
 
     const [result] = await pool.query(
       `
-      INSERT INTO paises (nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO paises (nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
+      VALUES (?, ?, ?, ?, ?, ?)
     `,
-      [nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
+      [nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
     )
 
     const usuario = await getUserInfo(req.user.id)
-    await logChange("agregó un nuevo país", `País: ${nombre} - Configuración general`, usuario)
+    await logChange("agregó un nuevo país", `País: ${nombre}, Imagen: ${img} - Configuración general`, usuario)
     res.json({ mensaje: "País agregado", id: result.insertId })
   } catch (error) {
+    console.error("Error al crear país:", error);
     res.status(500).json({ error: "Error del servidor" })
   }
 })
 
+// PUT /api/paises/:id (Actualizar)
 app.put("/api/paises/:id", auth(true), async (req, res) => {
   try {
-    const { nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
+    // Incluido 'img' en la desestructuración de req.body
+    const { nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
 
+    // 'img' ahora se incluye en la lista de campos a actualizar
     await pool.query(
       `
       UPDATE paises SET 
         nombre=?, 
+        img=?,
         genfy_pregunta_visible=?, 
         genfy_encuentra_visible=?, 
         mision_genfy_visible=?, 
         ruleta_visible=? 
       WHERE id=?
     `,
-      [nombre, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
+      [nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
     )
 
     const usuario = await getUserInfo(req.user.id)
-    await logChange("actualizó un país", `País: ${nombre} - Configuración general - ID: ${req.params.id}`, usuario)
+    await logChange("actualizó un país", `País: ${nombre}, Imagen: ${img} - Configuración general - ID: ${req.params.id}`, usuario)
     res.json({ mensaje: "País actualizado" })
   } catch (error) {
+    console.error("Error al actualizar país:", error);
     res.status(500).json({ error: "Error del servidor" })
   }
 })

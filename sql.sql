@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1:3306
--- Tiempo de generación: 18-09-2025 a las 22:27:06
+-- Tiempo de generación: 12-10-2025 a las 16:39:56
 -- Versión del servidor: 9.1.0
 -- Versión de PHP: 8.3.14
 
@@ -104,14 +104,15 @@ CREATE TABLE IF NOT EXISTS `genfy_encuentra_objetos` (
   `enlace` text,
   PRIMARY KEY (`id`),
   KEY `escenario_id` (`escenario_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `genfy_encuentra_objetos`
 --
 
 INSERT INTO `genfy_encuentra_objetos` (`id`, `escenario_id`, `imagen_objetivo`, `orden`, `enlace`) VALUES
-(17, 32, '/img/imagen_objetivo-1758121967002-805143331.png', 1, '');
+(17, 32, '/img/imagen_objetivo-1758121967002-805143331.png', 1, ''),
+(18, 32, '/img/imagen_objetivo-1758316968890-5951588.png', 1, '');
 
 -- --------------------------------------------------------
 
@@ -189,7 +190,7 @@ CREATE TABLE IF NOT EXISTS `logs_cambios` (
   `accion` varchar(255) NOT NULL,
   `detalle` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=183 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=188 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Volcado de datos para la tabla `logs_cambios`
@@ -301,7 +302,12 @@ INSERT INTO `logs_cambios` (`id`, `fecha`, `accion`, `detalle`) VALUES
 (179, '2025-09-17 16:33:32', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 12'),
 (180, '2025-09-17 16:33:35', 'actualizó una pregunta', 'el usuario Administrador, actualizó una pregunta - Pregunta de Colombia - Juego Genfy Pregunta - ID: 13'),
 (181, '2025-09-18 21:04:35', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos'),
-(182, '2025-09-18 21:27:27', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos');
+(182, '2025-09-18 21:27:27', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos'),
+(183, '2025-09-19 21:22:48', 'agregó un nuevo objeto', 'el usuario Administrador, agregó un nuevo objeto - Objeto agregado al escenario 32'),
+(184, '2025-10-12 15:58:09', 'inició sesión', 'el usuario Administrador, inició sesión - Acceso al sistema - Panel de administración de minijuegos'),
+(185, '2025-10-12 16:03:59', 'actualizó un país', 'el usuario Administrador, actualizó un país - País: Colombia2 - Configuración general - ID: 2'),
+(186, '2025-10-12 16:16:48', 'actualizó un país', 'el usuario Administrador, actualizó un país - País: Colombia2 - Configuración general - ID: 2'),
+(187, '2025-10-12 16:16:57', 'actualizó un país', 'el usuario Administrador, actualizó un país - País: Colombia2 - Configuración general - ID: 2');
 
 -- --------------------------------------------------------
 
@@ -398,6 +404,7 @@ CREATE TABLE IF NOT EXISTS `paises` (
   `genfy_encuentra_visible` tinyint(1) DEFAULT '1',
   `mision_genfy_visible` tinyint(1) DEFAULT '1',
   `ruleta_visible` tinyint(1) DEFAULT '1',
+  `img` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'def.png',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -405,10 +412,10 @@ CREATE TABLE IF NOT EXISTS `paises` (
 -- Volcado de datos para la tabla `paises`
 --
 
-INSERT INTO `paises` (`id`, `nombre`, `genfy_pregunta_visible`, `genfy_encuentra_visible`, `mision_genfy_visible`, `ruleta_visible`) VALUES
-(2, 'Colombia', 1, 1, 1, 1),
-(3, 'Peru', 1, 1, 1, 1),
-(4, 'Ecuador', 1, 1, 1, 1);
+INSERT INTO `paises` (`id`, `nombre`, `genfy_pregunta_visible`, `genfy_encuentra_visible`, `mision_genfy_visible`, `ruleta_visible`, `img`) VALUES
+(2, 'Colombia2', 1, 1, 1, 1, 'col.png'),
+(3, 'Peru', 1, 1, 1, 1, 'per.png'),
+(4, 'Ecuador', 1, 1, 1, 1, 'ecu.png');
 
 -- --------------------------------------------------------
 
