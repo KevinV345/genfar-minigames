@@ -1,0 +1,4 @@
+CREATE TABLE `minijuegos`.`paises_open` (`pais_id` INT NOT NULL , `fecha` DATETIME NOT NULL );
+CREATE TABLE `minijuegos`.game_open (`pais_id` INT NOT NULL , `game_id` INT NOT NULL , `fecha` DATETIME NOT NULL ) ENGINE = MyISAM;
+ALTER TABLE `paises` ADD `legal1` TEXT NOT NULL FIRST, ADD `legal2` TEXT NOT NULL AFTER `legal1`, ADD `legal3` TEXT NOT NULL AFTER `legal2`, ADD `legal4` TEXT NOT NULL AFTER `legal3`;
+

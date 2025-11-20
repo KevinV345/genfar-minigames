@@ -1,3 +1,4 @@
+
 // Global variables
 let currentUser = null
 let authToken = null
@@ -11,11 +12,42 @@ const colliderEditor = {
 }
 let currentView = null // Declare currentView variable
 
+// Metrics data storage
+let metricsData = {
+  paises: [],
+  games: [],
+  summary: {},
+  charts: {
+    paises: null,
+    games: null,
+    timeline: null
+  }
+};
+
+// Game names mapping
+const GAME_NAMES = {
+  0: 'Genfy Pregunta',
+  4: 'Genfy Encuentra',
+  1 : 'Misión Genfy',
+  3: 'La Rueda de Genfy'
+};
+
 // Feather icon library
 const feather = window.feather
 
 // API Base URL
 const API_BASE = "/api"
+
+function getGameName(gameId) {
+  const gameNames = {
+    0: "Genfy Pregunta",
+    2: "Misión Genfy",
+    3: "La Rueda de Genfy",
+    4: "Genfy Encuentra"
+  };
+  return gameNames[gameId] || `Juego ${gameId}`;
+}
+
 
 // Initialize app
 document.addEventListener("DOMContentLoaded", () => {
@@ -201,6 +233,7 @@ function switchTabFn(tabName) {
     },
     usuarios: loadUsuarios,
     logs: loadLogs,
+    metricas: initMetrics, // Add metrics initialization here
   }[tabName]
 
   if (loadFunction) loadFunction()
@@ -374,12 +407,16 @@ function showEscenarioForm(escenario = null) {
         formData.append("imagen", fileInput.files[0])
         requestData = formData
         isFormData = true
-      } else {
-        // If no new file, use JSON
+      } else if (isEdit) {
+        // If editing without new file, use JSON
         requestData = {
           paises_ids: selectedPaisesArray,
-          imagen_fondo: isEdit ? escenario.imagen_fondo : null,
+          imagen_fondo: escenario.imagen_fondo,
         }
+      } else {
+        // If creating without file, show error
+        alert("Error: Debe seleccionar una imagen de fondo")
+        return
       }
 
       if (isEdit) {
@@ -1090,6 +1127,8 @@ function showSpriteForm(sprite = null) {
 
 function showPaisForm(pais = null) {
   const isEdit = !!pais
+  console.log(pais);
+  
   const title = isEdit ? "Editar País" : "Agregar País"
   // Asume que las imágenes se sirven desde /img/ y que pais.img contiene el nombre del archivo.
   const currentImageFilename = pais?.img || 'def.png';
@@ -1101,7 +1140,22 @@ function showPaisForm(pais = null) {
         <label for="paisNombre">Nombre del País:</label>
         <input type="text" id="paisNombre" value="${isEdit ? pais.nombre : ""}" required>
       </div>
-
+      <div class="form-group">
+        <label for="paisLegal1">Texto legal Genfy pregunta:</label>
+        <input type="text" id="paisLegal1" value="${isEdit ? pais.legal1 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="paisLegal2">Texto legal Genfy encuentra:</label>
+        <input type="text" id="paisLegal2" value="${isEdit ? pais.legal2 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="paisLegal3">Texto legal Mision Genfy:</label>
+        <input type="text" id="paisLegal3" value="${isEdit ? pais.legal3 : ""}" required>
+      </div>
+      <div class="form-group">
+        <label for="paisLegal4">Texto legal La rueda de Genfy:</label>
+        <input type="text" id="paisLegal4" value="${isEdit ? pais.legal4 : ""}" required>
+      </div>
       <div class="form-group">
         <label for="paisImagen">Imagen (bandera/ícono):</label>
         <input type="file" id="paisImagen" accept="image/*" ${!isEdit ? "" : ""}>
@@ -1164,6 +1218,10 @@ function showPaisForm(pais = null) {
       // 2. Preparar los datos del país incluyendo el nombre del archivo de la imagen
       const formData = {
         nombre: document.getElementById("paisNombre").value,
+        legal1: document.getElementById("paisLegal1").value,
+        legal2: document.getElementById("paisLegal2").value,
+        legal3: document.getElementById("paisLegal3").value,
+        legal4: document.getElementById("paisLegal4").value,
         img: imageFilename, // Usar el nombre del archivo subido o el actual/por defecto
         genfy_pregunta_visible: document.getElementById("genfyPreguntaVisible").checked,
         genfy_encuentra_visible: document.getElementById("genfyEncuentraVisible").checked,
@@ -1560,7 +1618,7 @@ function showUsuarioForm(usuario = null) {
       </div>
       <div class="form-group">
         <label for="password">Contraseña del Usuario:</label>
-        <input type="text" id="password" value="" required>
+        <input type="password" id="password" value="" required>
       </div>
       <div class="form-group">
         <label for="usuarioAdmin">Es Administrador:</label>
@@ -1580,7 +1638,7 @@ function showUsuarioForm(usuario = null) {
       nombre: document.getElementById("usuarioNombre").value,
       correo: document.getElementById("usuarioCorreo").value,
       es_admin: document.getElementById("usuarioAdmin").checked,
-      contrasena:document.getElementById("password").value
+      contrasena: document.getElementById("password").value
     }
 
     try {
@@ -1885,119 +1943,783 @@ function showMessage(message, type = "info") {
     messageContainer.style.display = "none"
   }, 3000)
 }
+
 document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.getElementById("loginForm")
-  const loginContainer = document.getElementById("loginContainer")
-  const appContainer = document.getElementById("appContainer")
-  const logoutBtn = document.getElementById("logoutBtn")
-  const loginError = document.getElementById("loginError")
+  const loginForm = document.getElementById("loginForm")
+  const loginContainer = document.getElementById("loginContainer")
+  const appContainer = document.getElementById("appContainer")
+  const logoutBtn = document.getElementById("logoutBtn")
+  const loginError = document.getElementById("loginError")
 
-  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
-    item.addEventListener("click", () => {
-      if (window.innerWidth <= 1024) {
-        closeSidebar()
-      }
-    })
-  })
-
-  document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
-    
-    function submenu_toggle(e) {
-      e.preventDefault()
-      const submenuId = toggle.dataset.submenu + "-submenu"
-      const submenu = document.getElementById(submenuId)
-      const arrow = toggle.querySelector(".submenu-arrow")
-
-      if (submenu.style.display === "block") {
-        submenu.style.display = "none"
-        arrow.style.transform = "rotate(0deg)"
-        toggle.classList.remove("active")
-      } else {
-        submenu.style.display = "block"
-        arrow.style.transform = "rotate(90deg)"
-        toggle.classList.add("active")
-      }
-    }
-
-    toggle.addEventListener("click", submenu_toggle)
-    toggle.click()
-    toggle.click()
-
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", () => {
+      if (window.innerWidth <= 1024) {
+        closeSidebar()
+      }
+    })
   })
 
+  document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
+    toggle.addEventListener("click", function(e) {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      const submenuId = this.dataset.submenu + "-submenu"
+      const submenu = document.getElementById(submenuId)
+      const arrow = this.querySelector(".submenu-arrow")
 
+      // Use getComputedStyle to check the actual display value
+      const isVisible = window.getComputedStyle(submenu).display !== "none"
 
+      if (isVisible) {
+        submenu.style.display = "none"
+        arrow.style.transform = "rotate(0deg)"
+        this.classList.remove("active")
+      } else {
+        submenu.style.display = "block"
+        arrow.style.transform = "rotate(90deg)"
+        this.classList.add("active")
+      }
+    })
+  })
 
-  
-  
-  
-  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
-    item.addEventListener("click", (e) => {
-      if (!item.classList.contains("submenu-toggle")) {
-        switchTabFn(e.target.closest(".nav-item").dataset.tab)
-      }
-    })
-  })
+  document.querySelectorAll(".nav-item[data-tab]").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      if (!item.classList.contains("submenu-toggle")) {
+        switchTabFn(e.target.closest(".nav-item").dataset.tab)
+      }
+    })
+  })
 
-  // Add event listener for modal close button
-  document.addEventListener("click", (e) => {
-    if (e.target.classList.contains("close") || e.target.innerHTML === "&times;") {
-      closeModal()
-    }
-  })
+  document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("close") || e.target.innerHTML === "&times;") {
+      closeModal()
+    }
+  })
 
-  if (loginForm) {
-    loginForm.addEventListener("submit", (e) => {
-      e.preventDefault()
-      const correo = document.getElementById("correo").value
-      const contrasena = document.getElementById("contrasena").value
+  if (loginForm) {
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault()
+      const correo = document.getElementById("correo").value
+      const contrasena = document.getElementById("contrasena").value
 
-      if (correo === "admin@minijuegos.com" && contrasena === "admin123") {
-        currentUser = { correo, esAdmin: true }
-        loginContainer.style.display = "none"
-        appContainer.style.display = "flex"
-        initializeApp()
-      } else if (correo === "editor@minijuegos.com" && contrasena === "editor123") {
-        currentUser = { correo, esAdmin: false }
-        loginContainer.style.display = "none"
-        appContainer.style.display = "flex"
-        initializeApp()
-      } else {
-        loginError.textContent = "Credenciales incorrectas"
-      }
-    })
-  }
+      if (correo === "admin@minijuegos.com" && contrasena === "admin123") {
+        currentUser = { correo, esAdmin: true }
+        loginContainer.style.display = "none"
+        appContainer.style.display = "flex"
+        initializeApp()
+      } else if (correo === "editor@minijuegos.com" && contrasena === "editor123") {
+        currentUser = { correo, esAdmin: false }
+        loginContainer.style.display = "none"
+        appContainer.style.display = "flex"
+        initializeApp()
+      } else {
+        loginError.textContent = "Credenciales incorrectas"
+        loginError.style.display = "block"
+      }
+    })
+  }
 
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-      currentUser = null
-      appContainer.style.display = "none"
-      loginContainer.style.display = "flex"
-      loginError.textContent = ""
-    })
-  }
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      currentUser = null
+      appContainer.style.display = "none"
+      loginContainer.style.display = "flex"
+      loginError.textContent = ""
+      localStorage.removeItem('authToken'); // Remove token on logout
+      localStorage.removeItem('currentUser'); // Remove user data on logout
+    })
+  }
 
-  function initializeApp() {
-    updateUIForUserRole()
-    loadPaises()
-    loadPreguntas()
-    loadEscenarios()
-    loadSprites()
-    loadRuletaTemas()
-    loadRuletaPreguntas()
-    loadUsuarios()
-    loadLogs()
-    feather.replace()
-  }
+  function initializeApp() {
+    updateUIForUserRole()
+    // loadPaises() // Moved to loadInitialData
+    // loadPreguntas() // Moved to loadInitialData
+    // loadEscenarios() // Moved to loadInitialData
+    // loadSprites() // Moved to loadInitialData
+    // loadRuletaTemas() // Moved to loadInitialData
+    // loadRuletaPreguntas() // Moved to loadInitialData
+    // loadUsuarios() // Moved to loadInitialData
+    // loadLogs() // Moved to loadInitialData
+    feather.replace()
+  }
 
-  function updateUIForUserRole() {
-    const adminOnlyElements = document.querySelectorAll(".admin-only")
-    adminOnlyElements.forEach((element) => {
-      if (currentUser && currentUser.esAdmin) {
-        element.style.display = ""
-      } else {
-        element.style.display = "none"
-      }
-    })
-  }
+  function updateUIForUserRole() {
+    const adminOnlyElements = document.querySelectorAll(".admin-only")
+    adminOnlyElements.forEach((element) => {
+      if (currentUser && currentUser.esAdmin) {
+        element.style.display = ""
+      } else {
+        element.style.display = "none"
+      }
+    })
+  }
 })
+
+// </CHANGE> Adding complete metrics functionality with interactive charts
+
+// Load metrics data
+async function loadMetrics() {
+  try {
+    const gameFilter = document.getElementById('metricsGameFilter').value;
+    const paisFilter = document.getElementById('metricsPaisFilter').value;
+    const dateStart = document.getElementById('metricsDateStart').value;
+    const dateEnd = document.getElementById('metricsDateEnd').value;
+
+    let paisesUrl = '/metrics/paises?';
+    let gamesUrl = '/metrics/games?';
+    let summaryUrl = '/metrics/summary?';
+
+    if (paisFilter) {
+      paisesUrl += `pais_id=${paisFilter}&`;
+      gamesUrl += `pais_id=${paisFilter}&`;
+      summaryUrl += `pais_id=${paisFilter}&`;
+    }
+    
+    if (gameFilter) {
+      gamesUrl += `game_id=${gameFilter}&`;
+    }
+
+    if (dateStart) {
+      paisesUrl += `fecha_inicio=${dateStart}&`;
+      gamesUrl += `fecha_inicio=${dateStart}&`;
+      summaryUrl += `fecha_inicio=${dateStart}&`;
+    }
+
+    if (dateEnd) {
+      paisesUrl += `fecha_fin=${dateEnd}&`;
+      gamesUrl += `fecha_fin=${dateEnd}&`;
+      summaryUrl += `fecha_fin=${dateEnd}&`;
+    }
+
+    // Load data in parallel
+    const [paisesData, gamesData, summaryData] = await Promise.all([
+      apiRequest(paisesUrl),
+      apiRequest(gamesUrl),
+      apiRequest(summaryUrl)
+    ]);
+
+    metricsData.paises = paisesData;
+    metricsData.games = gamesData;
+    metricsData.summary = summaryData;
+
+    // Update UI
+    updateMetricsSummary();
+    renderMetricsTables();
+    renderMetricsCharts();
+  } catch (error) {
+    console.error('Error loading metrics:', error);
+    alert('Error al cargar métricas: ' + error.message);
+  }
+}
+
+// Update metrics summary cards
+function updateMetricsSummary() {
+  document.getElementById('totalPaisesOpen').textContent = metricsData.summary.paisesTotal || 0;
+  document.getElementById('totalGamesOpen').textContent = metricsData.summary.gamesTotal || 0;
+}
+
+// Render metrics tables
+function renderMetricsTables() {
+  // Render paises table
+  const paisesTableBody = document.querySelector('#paisesMetricsTable tbody');
+  paisesTableBody.innerHTML = metricsData.paises.map(item => `
+    <tr>
+      <td>${item.pais_nombre || 'N/A'}</td>
+      <td>${item.fecha}</td>
+      <td><span class="badge badge-success">${item.total}</span></td>
+    </tr>
+  `).join('');
+
+  // Render games table
+  const gamesTableBody = document.querySelector('#gamesMetricsTable tbody');
+  gamesTableBody.innerHTML = metricsData.games.map(item => `
+    <tr>
+      <td>${GAME_NAMES[item.game_id] || item.game_id}</td>
+      <td>${item.pais_nombre || 'N/A'}</td>
+      <td>${item.fecha}</td>
+      <td><span class="badge badge-success">${item.total}</span></td>
+    </tr>
+  `).join('');
+}
+
+// Render all metrics charts
+function renderMetricsCharts() {
+  renderPaisesChart();
+  renderGamesChart();
+  renderTimelineChart();
+}
+
+// Render países chart (bar chart)
+function renderPaisesChart() {
+  const canvas = document.getElementById('paisesChart');
+  const ctx = canvas.getContext('2d');
+  
+  // Clear previous chart
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 300;
+
+  const topPaises = metricsData.summary.topPaises || [];
+  
+  if (topPaises.length === 0) {
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.fillText('No hay datos disponibles', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate dimensions
+  const padding = 60;
+  const chartWidth = canvas.width - padding * 2;
+  const chartHeight = canvas.height - padding * 2;
+  const barWidth = chartWidth / topPaises.length - 20;
+  const maxValue = Math.max(...topPaises.map(p => p.total));
+
+  // Draw bars
+  topPaises.forEach((pais, index) => {
+    const barHeight = (pais.total / maxValue) * chartHeight;
+    const x = padding + index * (barWidth + 20);
+    const y = padding + chartHeight - barHeight;
+
+    // Draw bar with gradient
+    const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
+    gradient.addColorStop(0, '#667eea');
+    gradient.addColorStop(1, '#764ba2');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, barHeight);
+
+    // Draw value on top
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(pais.total, x + barWidth / 2, y - 10);
+
+    // Draw label
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.save();
+    ctx.translate(x + barWidth / 2, padding + chartHeight + 15);
+    ctx.rotate(-Math.PI / 4);
+    ctx.textAlign = 'right';
+    ctx.fillText(pais.nombre || 'N/A', 0, 0);
+    ctx.restore();
+  });
+
+  // Draw axes
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, padding + chartHeight);
+  ctx.lineTo(padding + chartWidth, padding + chartHeight);
+  ctx.stroke();
+}
+
+// Render games chart (horizontal bar chart)
+function renderGamesChart() {
+  const canvas = document.getElementById('gamesChart');
+  const ctx = canvas.getContext('2d');
+  
+  // Clear previous chart
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 300;
+
+  const topGames = metricsData.summary.topGames || [];
+  
+  if (topGames.length === 0) {
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.fillText('No hay datos disponibles', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate dimensions
+  const padding = 60;
+  const labelWidth = 150;
+  const chartWidth = canvas.width - padding - labelWidth;
+  const chartHeight = canvas.height - padding * 2;
+  const barHeight = chartHeight / topGames.length - 15;
+  const maxValue = Math.max(...topGames.map(g => g.total));
+
+  // Draw bars
+  topGames.forEach((game, index) => {
+    const barWidth = (game.total / maxValue) * chartWidth;
+    const x = padding + labelWidth;
+    const y = padding + index * (barHeight + 15);
+
+    // Draw bar with gradient
+    const gradient = ctx.createLinearGradient(x, y, x + barWidth, y);
+    gradient.addColorStop(0, '#667eea');
+    gradient.addColorStop(1, '#764ba2');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, barHeight);
+
+    // Draw value
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(game.total, x + barWidth + 10, y + barHeight / 2 + 5);
+
+    // Draw label
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    
+    ctx.fillText(GAME_NAMES[game.game_id] || game.game_id, x - 10, y + barHeight / 2 + 5);
+  });
+
+  // Draw axis
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(padding + labelWidth, padding);
+  ctx.lineTo(padding + labelWidth, padding + chartHeight);
+  ctx.stroke();
+}
+function formatDate(d) {
+  const date = new Date(d);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+// Render timeline chart (line chart)
+function renderTimelineChart() {
+  const canvas = document.getElementById('timelineChart');
+  const ctx = canvas.getContext('2d');
+  
+  // Clear previous chart
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 400;
+
+  // Aggregate data by date
+  const dateMap = new Map();
+  
+  metricsData.paises.forEach(item => {
+    const date = formatDate(item.fecha);
+    if (!dateMap.has(date)) {
+      dateMap.set(date, { paises: 0, games: 0 });
+    }
+    dateMap.get(date).paises += item.total;
+  });
+
+  metricsData.games.forEach(item => {
+    const date = formatDate(item.fecha);
+    if (!dateMap.has(date)) {
+      console.log(date)
+      dateMap.set(date, { paises: 0, games: 0 });
+    }
+    dateMap.get(date).games += item.total;
+  });
+
+  const dates = Array.from(dateMap.keys()).sort();
+  const paisesValues = dates.map(date => dateMap.get(date).paises);
+  const gamesValues = dates.map(date => dateMap.get(date).games);
+
+  if (dates.length === 0) {
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.fillText('No hay datos disponibles', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Calculate dimensions
+  const padding = 60;
+  const chartWidth = canvas.width - padding * 2;
+  const chartHeight = canvas.height - padding * 2;
+  const maxValue = Math.max(...paisesValues, ...gamesValues, 1);
+  const stepX = chartWidth / (dates.length - 1 || 1);
+
+  // Draw grid
+  ctx.strokeStyle = '#f0f2f5';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = padding + (chartHeight / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(padding + chartWidth, y);
+    ctx.stroke();
+
+    // Y-axis labels
+    const value = Math.round(maxValue * (1 - i / 5));
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(value, padding - 10, y + 5);
+  }
+
+  // Draw lines
+  function drawLine(values, color, label) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    
+    values.forEach((value, index) => {
+      const x = padding + index * stepX;
+      const y = padding + chartHeight - (value / maxValue) * chartHeight;
+      
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    
+    ctx.stroke();
+
+    // Draw points
+    ctx.fillStyle = color;
+    values.forEach((value, index) => {
+      const x = padding + index * stepX;
+      const y = padding + chartHeight - (value / maxValue) * chartHeight;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  drawLine(paisesValues, '#667eea', 'Países');
+  drawLine(gamesValues, '#10b981', 'Juegos');
+
+  // Draw axes
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, padding + chartHeight);
+  ctx.lineTo(padding + chartWidth, padding + chartHeight);
+  ctx.stroke();
+
+  // Draw X-axis labels (dates)
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  dates.forEach((date, index) => {
+    if (index % Math.ceil(dates.length / 10) === 0) {
+      const x = padding + index * stepX;
+      ctx.save();
+      ctx.translate(x, padding + chartHeight + 15);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText(date, -5, 20);
+      ctx.restore();
+    }
+  });
+
+  // Draw legend
+  const legendY = 30;
+  ctx.fillStyle = '#667eea';
+  ctx.fillRect(padding, legendY, 20, 3);
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Países Abiertos', padding + 30, legendY + 5);
+
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(padding + 150, legendY, 20, 3);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText('Juegos Abiertos', padding + 180, legendY + 5);
+}
+
+// Initialize metrics section
+function initMetrics() {
+  // Load countries for filter
+  const paisFilter = document.getElementById('metricsPaisFilter');
+  paisFilter.innerHTML = '<option value="">Todos los países</option>';
+  // Ensure currentData.paises is loaded before populating the filter
+  if (currentData.paises && currentData.paises.length > 0) {
+    currentData.paises.forEach(pais => {
+      const option = document.createElement('option');
+      option.value = pais.id;
+      option.textContent = pais.nombre;
+      paisFilter.appendChild(option);
+    });
+  } else {
+      console.warn("currentData.paises is not yet loaded. Metrics filter might be empty.");
+  }
+
+  // Set default dates (last 30 days)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+  
+  document.getElementById('metricsDateEnd').valueAsDate = today;
+  document.getElementById('metricsDateStart').valueAsDate = thirtyDaysAgo;
+
+  // Load initial metrics
+  loadMetrics();
+
+  // Add event listeners
+  document.getElementById('applyMetricsFilters').addEventListener('click', loadMetrics);
+  document.getElementById('refreshMetricsBtn').addEventListener('click', () => {
+    loadMetrics();
+    feather.replace();
+  });
+  
+  document.getElementById('clearMetricsFilters').addEventListener('click', () => {
+    document.getElementById('metricsGameFilter').value = '';
+    document.getElementById('metricsPaisFilter').value = '';
+    document.getElementById('metricsDateStart').value = '';
+    document.getElementById('metricsDateEnd').value = '';
+    loadMetrics();
+  });
+
+  // Redraw charts on window resize
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      // Check if the metrics section is currently active before redrawing
+      const metricasSection = document.getElementById('metricasSection');
+      if (metricasSection && metricasSection.classList.contains('active')) {
+        renderMetricsCharts();
+        feather.replace(); // Ensure icons are replaced after resize
+      }
+    }, 250);
+  });
+}
+
+// Update the loadInitialData function to include the initialization of metrics
+async function loadInitialData() {
+  await loadPaises();
+  await loadPreguntas();
+  await loadEscenarios();
+  await loadSprites();
+  await loadTerapias();
+  await loadRuletaTemas();
+  await loadRuletaPreguntas();
+  if (currentUser && currentUser.es_admin) { // Check if currentUser exists and is admin
+    await loadUsuarios();
+    await loadLogs();
+  }
+  
+  loadPaisesForFilters(); // Load filters based on loaded paises
+  
+  // Initialize metrics after loading paises
+  initMetrics(); 
+}
+
+// Corrected loadPaisesForFilters to ensure it's called appropriately
+function loadPaisesForFilters() {
+  const paisFilterPreguntas = document.getElementById('paisFilterPreguntas');
+  const paisFilterEscenarios = document.getElementById('paisFilterEscenarios');
+  const paisFilterSprites = document.getElementById('paisFilterSprites');
+  const paisFilterRuleta = document.getElementById('paisFilterRuleta');
+
+  const filterElements = [
+    paisFilterPreguntas,
+    paisFilterEscenarios,
+    paisFilterSprites,
+    paisFilterRuleta
+  ];
+
+  filterElements.forEach(selectElement => {
+    if (selectElement) {
+      selectElement.innerHTML = '<option value="">Todos los países</option>';
+      if (currentData.paises && currentData.paises.length > 0) {
+        currentData.paises.forEach(pais => {
+          const option = document.createElement('option');
+          option.value = pais.id;
+          option.textContent = pais.nombre;
+          selectElement.appendChild(option);
+        });
+      }
+    }
+  });
+}
+
+// Re-adjust DOMContentLoaded to use the new structure and loadInitialData
+document.addEventListener('DOMContentLoaded', async () => {
+  const loginContainer = document.getElementById('loginContainer');
+  const appContainer = document.getElementById('appContainer');
+  const modal = document.getElementById('modal');
+  const modalCloseBtn = modal.querySelector('.close'); // Use querySelector for specific close button
+
+  // Close modal functionality
+  if (modalCloseBtn) {
+    modalCloseBtn.onclick = () => {
+      modal.style.display = 'none';
+    };
+  }
+
+  window.onclick = (event) => {
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  };
+
+  // Login form submission
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const correo = document.getElementById('correo').value;
+    const contrasena = document.getElementById('contrasena').value;
+
+    try {
+      const response = await fetch(`${API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo, contrasena }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.token) {
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+        loginContainer.style.display = 'none';
+        appContainer.style.display = 'flex'; // Changed from 'flex' in original to match potential CSS
+
+        if (currentUser.es_admin) {
+          document.body.classList.add('admin');
+        }
+
+        await loadInitialData(); // Load all necessary data
+        feather.replace(); // Replace feather icons
+      } else {
+        document.getElementById('loginError').textContent = data.error || 'Error al iniciar sesión';
+        document.getElementById('loginError').style.display = 'block';
+      }
+    } catch (error) {
+      document.getElementById('loginError').textContent = 'Error de conexión';
+      document.getElementById('loginError').style.display = 'block';
+      console.error('Login error:', error);
+    }
+  });
+
+  // Check for existing session on page load
+  const savedToken = localStorage.getItem('authToken');
+  const savedUser = localStorage.getItem('currentUser');
+
+  if (savedToken && savedUser) {
+    authToken = savedToken;
+    currentUser = JSON.parse(savedUser);
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/verify`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      
+      if (response.ok) {
+          const verifyData = await response.json();
+          if (verifyData.user) { // Ensure user data is valid
+            loginContainer.style.display = 'none';
+            appContainer.style.display = 'flex';
+
+            if (currentUser.es_admin) {
+              document.body.classList.add('admin');
+            }
+
+            await loadInitialData();
+            feather.replace();
+          } else {
+            // Token valid but user data mismatch or invalid, clear session
+            throw new Error('Invalid user session data.');
+          }
+      } else {
+          // Token verification failed
+          throw new Error('Token verification failed.');
+      }
+    } catch (error) {
+      console.error('Session verification error:', error);
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUser');
+      // Optionally show login form again if session is invalid
+      loginContainer.style.display = 'flex';
+      appContainer.style.display = 'none';
+    }
+  }
+
+  // Logout button functionality
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUser');
+      location.reload(); // Reload the page to reset state
+    });
+  }
+
+  // Navigation item click handler
+  document.querySelectorAll('.nav-item[data-tab]').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      // Prevent navigation if it's a submenu toggle
+      if (e.target.closest('.submenu-toggle')) {
+        return;
+      }
+
+      const tab = e.currentTarget.getAttribute('data-tab');
+      
+      // Remove active class from all nav items and sections
+      document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('active'));
+      document.querySelectorAll('.section').forEach((section) => section.classList.remove('active'));
+      
+      // Add active class to the clicked nav item and its corresponding section
+      e.currentTarget.classList.add('active');
+      const targetSection = document.getElementById(`${tab}Section`);
+      if (targetSection) {
+        targetSection.classList.add('active');
+        
+        // Ensure specific initializations happen when a tab is activated
+        if (tab === 'metricas') {
+          // initMetrics is called within switchTabFn now, but ensuring it runs if metricas is the initial tab
+          if (currentData.paises && currentData.paises.length > 0) {
+             setTimeout(() => initMetrics(), 100); // Small delay to allow rendering
+          }
+        }
+      }
+
+      // Close mobile menu if open
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+      }
+    });
+  });
+
+  // Mobile menu toggle functionality
+  const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+  const sidebar = document.getElementById('sidebar');
+
+  if (mobileMenuToggle && sidebar) {
+    mobileMenuToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+    });
+  }
+
+  // Submenu toggle functionality
+  document.querySelectorAll('.submenu-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent event from bubbling up to nav-item click
+      const submenuId = toggle.getAttribute('data-submenu') + '-submenu';
+      const submenu = document.getElementById(submenuId);
+      const arrow = toggle.querySelector('.submenu-arrow');
+      
+      if (submenu) {
+        const isOpen = submenu.style.display === 'block';
+        submenu.style.display = isOpen ? 'none' : 'block';
+        if (arrow) {
+          arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+        }
+      }
+    });
+  });
+
+  // Initial feather icon replacement
+  feather.replace();
+});

@@ -7,9 +7,11 @@ import { fileURLToPath } from "url"
 import cors from "cors"
 import multer from "multer"
 import fs from "fs"
+import { log } from "console"
 
 const app = express()
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }));
 app.use(cors())
 
 const SECRET = "clave-secreta"
@@ -139,6 +141,38 @@ app.post("/api/upload", auth(), upload.single("image"), (req, res) => {
   }
 })
 
+app.post("/api/metrics/pais", async (req, res) => {
+  try {
+
+    
+    const { pais_id } = req.body;
+
+    await pool.query(
+      "INSERT INTO paises_open (pais_id, fecha) VALUES (?, NOW())",
+      [pais_id]
+    );
+
+    res.json({ ok: true});
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/metrics/game", async (req, res) => {
+  try {
+  const { game_id, pais_id } = req.body;
+    await pool.query(
+      "INSERT INTO game_open (pais_id,game_id, fecha) VALUES (?,?, NOW())",
+      [pais_id,game_id]
+    );
+
+    res.json({ ok: true});
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 app.post("/api/login", async (req, res) => {
   try {
     const { correo, contrasena } = req.body
@@ -291,7 +325,7 @@ app.delete("/api/usuarios/:id", auth(true), async (req, res) => {
 app.get("/api/paises", async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT id, nombre, img,
+      SELECT id, nombre,legal1,legal2,legal3,legal4, img,
              genfy_pregunta_visible, 
              genfy_encuentra_visible, 
              mision_genfy_visible, 
@@ -308,7 +342,7 @@ app.get("/api/paises/:id", auth(), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-      SELECT id, nombre, 
+      SELECT id, nombre, legal1,legal2,legal3,legal4,
              genfy_pregunta_visible, 
              genfy_encuentra_visible, 
              mision_genfy_visible, 
@@ -328,6 +362,10 @@ app.post("/api/paises", auth(true), async (req, res) => {
   try {
     const {
       nombre,
+      legal1,
+      legal2,
+      legal3,
+      legal4,
       img = "def.png", // Incluido el nuevo campo 'img'
       genfy_pregunta_visible = true,
       genfy_encuentra_visible = true,
@@ -337,10 +375,10 @@ app.post("/api/paises", auth(true), async (req, res) => {
 
     const [result] = await pool.query(
       `
-      INSERT INTO paises (nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO paises (nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
+      VALUES (?,?,?,?,?, ?, ?, ?, ?, ?)
     `,
-      [nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
+      [nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
     )
 
     const usuario = await getUserInfo(req.user.id)
@@ -356,13 +394,17 @@ app.post("/api/paises", auth(true), async (req, res) => {
 app.put("/api/paises/:id", auth(true), async (req, res) => {
   try {
     // Incluido 'img' en la desestructuración de req.body
-    const { nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
+    const { nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
 
     // 'img' ahora se incluye en la lista de campos a actualizar
     await pool.query(
       `
       UPDATE paises SET 
         nombre=?, 
+        legal1=?, 
+        legal2=?, 
+        legal3=?, 
+        legal4=?, 
         img=?,
         genfy_pregunta_visible=?, 
         genfy_encuentra_visible=?, 
@@ -370,7 +412,7 @@ app.put("/api/paises/:id", auth(true), async (req, res) => {
         ruleta_visible=? 
       WHERE id=?
     `,
-      [nombre, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
+      [nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
     )
 
     const usuario = await getUserInfo(req.user.id)
@@ -1319,10 +1361,166 @@ app.get("/api/logs", auth(true), async (req, res) => {
   }
 })
 
+app.get("/api/metrics/paises", auth(), async (req, res) => {
+  try {
+    const { pais_id, fecha_inicio, fecha_fin } = req.query;
+    
+    let query = `
+      SELECT 
+        po.pais_id,
+        p.nombre as pais_nombre,
+        DATE(po.fecha) as fecha,
+        COUNT(*) as total
+      FROM paises_open po
+      LEFT JOIN paises p ON po.pais_id = p.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    if (pais_id) {
+      query += ' AND po.pais_id = ?';
+      params.push(pais_id);
+    }
+    
+    if (fecha_inicio) {
+      query += ' AND po.fecha >= ?';
+      params.push(fecha_inicio);
+    }
+    
+    if (fecha_fin) {
+      query += ' AND po.fecha <= ?';
+      params.push(fecha_fin + ' 23:59:59');
+    }
+    
+    query += ' GROUP BY po.pais_id, DATE(po.fecha) ORDER BY fecha DESC, total DESC';
+    
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener métricas de países:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
+app.get("/api/metrics/games", auth(), async (req, res) => {
+  try {
+    const { game_id, pais_id, fecha_inicio, fecha_fin } = req.query;
+    
+    let query = `
+      SELECT 
+        go.game_id,
+        go.pais_id,
+        p.nombre as pais_nombre,
+        DATE(go.fecha) as fecha,
+        COUNT(*) as total
+      FROM game_open go
+      LEFT JOIN paises p ON go.pais_id = p.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    if (game_id) {
+      query += ' AND go.game_id = ?';
+      params.push(game_id);
+    }
+    
+    if (pais_id) {
+      query += ' AND go.pais_id = ?';
+      params.push(pais_id);
+    }
+    
+    if (fecha_inicio) {
+      query += ' AND go.fecha >= ?';
+      params.push(fecha_inicio);
+    }
+    
+    if (fecha_fin) {
+      query += ' AND go.fecha <= ?';
+      params.push(fecha_fin + ' 23:59:59');
+    }
+    
+    query += ' GROUP BY go.game_id, go.pais_id, DATE(go.fecha) ORDER BY fecha DESC, total DESC';
+    
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener métricas de juegos:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
+app.get("/api/metrics/summary", auth(), async (req, res) => {
+  try {
+    const { pais_id, fecha_inicio, fecha_fin } = req.query;
+    
+    let paisCondition = '';
+    let dateCondition = '';
+    const params = [];
+    
+    if (pais_id) {
+      paisCondition = ' AND pais_id = ?';
+      params.push(pais_id);
+    }
+    
+    if (fecha_inicio) {
+      dateCondition += ' AND fecha >= ?';
+      params.push(fecha_inicio);
+    }
+    
+    if (fecha_fin) {
+      dateCondition += ' AND fecha <= ?';
+      params.push(fecha_fin + ' 23:59:59');
+    }
+    
+    // Total de países abiertos
+    const [paisesTotal] = await pool.query(
+      `SELECT COUNT(*) as total FROM paises_open WHERE 1=1 ${paisCondition} ${dateCondition}`,
+      params
+    );
+    
+    // Total de juegos abiertos
+    const [gamesTotal] = await pool.query(
+      `SELECT COUNT(*) as total FROM game_open WHERE 1=1 ${paisCondition} ${dateCondition}`,
+      params
+    );
+    
+    // Top 5 países más abiertos
+    const [topPaises] = await pool.query(
+      `SELECT p.nombre, COUNT(*) as total 
+       FROM paises_open po
+       LEFT JOIN paises p ON po.pais_id = p.id
+       WHERE 1=1 ${paisCondition} ${dateCondition}
+       GROUP BY po.pais_id
+       ORDER BY total DESC
+       LIMIT 5`,
+      params
+    );
+    
+    // Top 5 juegos más abiertos
+    const [topGames] = await pool.query(
+      `SELECT game_id, COUNT(*) as total 
+       FROM game_open
+       WHERE 1=1 ${paisCondition} ${dateCondition}
+       GROUP BY game_id
+       ORDER BY total DESC
+       LIMIT 5`,
+      params
+    );
+    
+    res.json({
+      paisesTotal: paisesTotal[0].total,
+      gamesTotal: gamesTotal[0].total,
+      topPaises,
+      topGames
+    });
+  } catch (error) {
+    console.error("Error al obtener resumen de métricas:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
 app.listen(process.env.PORT || 3000, () => {
   console.log(`Servidor corriendo en puerto ${process.env.PORT || 3000}`)
 })
-
-
-
-
