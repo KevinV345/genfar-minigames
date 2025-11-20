@@ -1,26 +1,26 @@
 import mysql from "mysql2/promise"
 
-// const dbConfig = {
-//   host: "127.0.0.1",   // 👈 fuerza IPv4
-//   port: 3306,
-//   user: "root",
-//   password: "Kevin2025@BGA",        // tu contraseña de MySQL
-//   database: "minijuegos",
-//   waitForConnections: true,
-//   connectionLimit: 10,
-//   queueLimit: 0,
-// }
-
 const dbConfig = {
   host: "127.0.0.1",   // 👈 fuerza IPv4
   port: 3306,
   user: "root",
-  password: "",        // tu contraseña de MySQL
+  password: "Kevin2025@BGA",        // tu contraseña de MySQL
   database: "minijuegos",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 }
+
+// const dbConfig = {
+//   host: "127.0.0.1",   // 👈 fuerza IPv4
+//   port: 3306,
+//   user: "root",
+//   password: "",        // tu contraseña de MySQL
+//   database: "minijuegos",
+//   waitForConnections: true,
+//   connectionLimit: 10,
+//   queueLimit: 0,
+// }
 
 
 
