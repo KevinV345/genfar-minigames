@@ -321,23 +321,177 @@ app.delete("/api/usuarios/:id", auth(true), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
+app.post("/api/imagenes_legales/eliminar", auth(), async (req, res) => {
+  const { pais_id, seccion, url } = req.body;
+
+  if (!pais_id || !seccion || !url) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    await pool.query(
+      "DELETE FROM paises_legal_imagenes WHERE pais_id = ? AND legal_numero = ? AND imagen_url = ?",
+      [pais_id, seccion, url]
+    );
+    console.log(pais_id, seccion, url)
+
+    res.json({ mensaje: "Imagen eliminada" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+});
 
 app.get("/api/paises", async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT id, nombre,legal1,legal2,legal3,legal4, img,
-             genfy_pregunta_visible, 
-             genfy_encuentra_visible, 
-             mision_genfy_visible, 
-             ruleta_visible 
-      FROM paises ORDER BY nombre
-    `)
-    res.json(rows)
-  } catch (error) {
-    res.status(500).json({ error: "Error del servidor" })
-  }
-})
+    // 1. Obtener todos los datos principales de los países
+    const [paisesRows] = await pool.query(`
+      SELECT 
+        id, 
+        nombre, 
+        legal1, 
+        legal2, 
+        legal3, 
+        legal4, 
+        img,
+        genfy_pregunta_visible, 
+        genfy_encuentra_visible, 
+        mision_genfy_visible, 
+        ruleta_visible 
+      FROM paises 
+      ORDER BY nombre
+    `);
 
+    // Si no hay países, devolver un array vacío inmediatamente
+    if (paisesRows.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. Obtener todas las imágenes legales para todos los países
+    // Ordenamos por pais_id y orden para garantizar la secuencia correcta
+    const [imagenesRows] = await pool.query(`
+      SELECT 
+        pais_id, 
+        legal_numero, 
+        imagen_url, 
+        orden 
+      FROM paises_legal_imagenes 
+      ORDER BY pais_id, legal_numero, orden
+    `);
+
+    // 3. Estructurar los datos para la respuesta final
+    const paisesConImagenes = paisesRows.map(pais => {
+      // Inicializar el objeto de imágenes legales
+      // Usamos las claves 'legal1', 'legal2', etc. para la facilidad de acceso en el frontend
+      const imagenes_legales = {
+        legal1: [],
+        legal2: [],
+        legal3: [],
+        legal4: [],
+      };
+      
+      return {
+        ...pais,
+        imagenes_legales: imagenes_legales,
+      };
+    });
+
+    // Crear un mapa para acceder a los países por su ID rápidamente
+    const paisesMap = new Map(paisesConImagenes.map(pais => [pais.id, pais]));
+
+    // 4. Asignar las imágenes a su país y legal_numero correspondiente
+    imagenesRows.forEach(imagen => {
+      const pais = paisesMap.get(imagen.pais_id);
+      
+      if (pais) {
+        // Mapear el 'legal_numero' entero (1, 2, 3, 4) a la clave de texto ('legal1', 'legal2', etc.)
+        const legalKey = `legal${imagen.legal_numero}`;
+        
+        // Verificar que la clave exista antes de agregar la imagen
+        if (pais.imagenes_legales[legalKey]) {
+          pais.imagenes_legales[legalKey].push({
+            url: imagen.imagen_url,
+            orden: imagen.orden
+          });
+        }
+      }
+    });
+
+    // 5. Enviar la respuesta con los países y sus imágenes anidadas
+    res.json(paisesConImagenes);
+
+  } catch (error) {
+    console.error("Error al obtener países e imágenes legales:", error);
+    res.status(500).json({ error: "Error del servidor al procesar la solicitud." });
+  }
+});
+// Asegúrate de tener disponible la función para ejecutar consultas SQL, 
+// y el módulo 'fs' para manejo de archivos.
+
+// const fs = require('fs'); 
+// const dbQuery = require('./db_connection'); // Asumiendo que tienes un módulo de conexión a DB
+
+
+app.post("/api/upload/imagen", auth(), upload.single("imagen"), async (req, res) => {
+  try {
+    // 1. Verificación de archivo
+    if (!req.file) {
+      return res.status(400).json({ error: "No se proporcionó ningún archivo" });
+    }
+
+    // 2. Extracción de metadatos del req.body (gracias a Multer)
+    const { pais_id, legal_numero, orden } = req.body;
+    
+    // 3. Validación de metadatos
+    if (!pais_id || !legal_numero || !orden) {
+      // Si faltan metadatos, se puede considerar eliminar el archivo subido
+      // para evitar archivos huérfanos. (Opcional, si req.file.path está disponible)
+      // if (req.file && req.file.path) {
+      //     fs.unlinkSync(req.file.path); 
+      // }
+      return res.status(400).json({ error: "Faltan metadatos obligatorios (pais_id, legal_numero, orden)" });
+    }
+
+    // 4. Preparación de datos para la DB
+    const imagen_url = `/img/${req.file.filename}`;
+    
+    const dbData = {
+        pais_id: parseInt(pais_id), 
+        legal_numero: parseInt(legal_numero),
+        imagen_url: imagen_url, 
+        orden: parseInt(orden)
+    };
+
+    // 5. EJECUCIÓN DEL SQL PURO (Guardado en paises_legal_imagenes)
+    const sql = `
+      INSERT INTO paises_legal_imagenes 
+        (pais_id, legal_numero, imagen_url, orden) 
+      VALUES 
+        (?, ?, ?, ?)
+    `;
+    const params = [
+        dbData.pais_id, 
+        dbData.legal_numero, 
+        dbData.imagen_url, 
+        dbData.orden
+    ];
+
+    // Asumiendo que 'dbQuery' es tu función para ejecutar SQL
+    const dbResult = await pool.query(sql, params); 
+    // 6. Respuesta de éxito
+    res.status(201).json({ 
+      message: "Imagen subida y metadatos guardados con éxito", 
+      filename: req.file.filename,
+      url: imagen_url,
+      insertId: dbResult.insertId // El ID del nuevo registro en la tabla
+    });
+    
+  } catch (error) {
+    // Manejo de errores de Multer o de la Base de Datos
+    console.error("Error al procesar subida y metadatos:", error);
+    res.status(500).json({ error: error.message || "Error al procesar la subida y metadatos en el servidor" });
+  }
+});
 app.get("/api/paises/:id", auth(), async (req, res) => {
   try {
     const [rows] = await pool.query(

@@ -1,4 +1,3 @@
-
 // Global variables
 let currentUser = null
 let authToken = null
@@ -283,6 +282,7 @@ async function apiRequest(endpoint, method = "GET", body = null, isFormData = fa
 // --- DATA LOADING & RENDERING ---
 async function loadPaises() {
   currentData.paises = await apiRequest("/paises")
+  
   const tbody = document.querySelector("#paisesTable tbody")
   tbody.innerHTML = currentData.paises
     .map(
@@ -298,6 +298,7 @@ async function loadPaises() {
         </div>
       </td>
       <td class="admin-only">
+        <button class="btn btn-warning btn-small" onclick="añadirImgPais(${pais.id})">Añadir imagen</button>
         <button class="btn btn-warning btn-small" onclick="editPais(${pais.id})">Editar</button>
         <button class="btn btn-danger btn-small" onclick="deletePais(${pais.id})">Eliminar</button>
       </td>
@@ -1247,7 +1248,120 @@ function showPaisForm(pais = null) {
     }
   }
 }
+function showañadirImgPais(pais) {
+  var pais_id = pais.id;
+  const title = "Añadir / Gestionar Imágenes Legales";
 
+  let content = `
+    <form id="legalImageForm">
+      <input type="hidden" id="paisId" value="${pais_id}">
+
+      <div class="form-group">
+        <label>Sección Legal:</label>
+        <select id="legalNumero" required onchange="renderImagenesLegales(${pais_id})">
+          <option value="" disabled selected>Selecciona una sección</option>
+          <option value="1">Texto legal Genfy pregunta (1)</option>
+          <option value="2">Texto legal Genfy encuentra (2)</option>
+          <option value="3">Texto legal Misión Genfy (3)</option>
+          <option value="4">Texto legal La rueda de Genfy (4)</option>
+        </select>
+      </div>
+
+      <div id="contenedorImagenes" style="margin-bottom:15px;"></div>
+
+      <div class="form-group">
+        <label>Seleccionar Imagen:</label>
+        <input type="file" id="legalImageFile" accept="image/*">
+      </div>
+
+      <div class="form-group">
+        <label>Orden:</label>
+        <input type="number" id="orden" value="1" min="1" required>
+      </div>
+
+      <div class="form-buttons">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Subir y Guardar</button>
+      </div>
+    </form>
+  `;
+
+  showModal(title, content);
+
+  document.getElementById("legalImageForm").onsubmit = async (e) => {
+    e.preventDefault();
+
+    const fileInput = document.getElementById("legalImageFile");
+    const paisId = document.getElementById("paisId").value;
+    const legalNumero = document.getElementById("legalNumero").value;
+    const orden = document.getElementById("orden").value;
+
+    if (fileInput.files.length === 0 || !legalNumero) return;
+    
+
+    const file = fileInput.files[0];
+    const uploadData = new FormData();
+
+    uploadData.append("imagen", file);
+    uploadData.append("pais_id", paisId);
+    uploadData.append("legal_numero", legalNumero);
+    uploadData.append("orden", orden);
+
+    await apiRequest("/upload/imagen", "POST", uploadData, true);
+    await loadPaises();
+    renderImagenesLegales(paisId);
+  };
+}
+
+async function renderImagenesLegales(paisId) {
+  const select = document.getElementById("legalNumero");
+  if (!select.value) return;
+
+  const section = select.value;
+  const pais = currentData.paises.find((p) => p.id == paisId)
+  const lista = pais.imagenes_legales["legal"+section];
+
+  let html = "";
+
+  if (lista.length === 0) {
+    html = `<p style="color:#999">No hay imágenes en esta sección.</p>`;
+  } else {
+    html = `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${lista
+          .map(
+            (img, i) => `
+          <div style="border:1px solid #ccc;padding:10px;border-radius:6px;display:flex;align-items:center;gap:10px;">
+            <img src="${img.url}" style="width:80px;height:auto;border-radius:4px;">
+            <div>Orden: ${img.orden}</div>
+            <button class="btn btn-danger" onclick="eliminarImagenLegal(${paisId}, '${section}', '${img.url}')">
+              Eliminar
+            </button>
+          </div>`
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  document.getElementById("contenedorImagenes").innerHTML = html;
+}
+
+async function eliminarImagenLegal(paisId, section, url) {
+  await apiRequest("/imagenes_legales/eliminar", "POST", {
+    pais_id: paisId,
+    seccion: section,
+    url: url
+  });
+
+  await loadPaises();
+  showañadirImgPais(currentData.paises.find((p) => p.id === paisId))
+}
+
+async function añadirImgPais(id) { 
+    const pais = currentData.paises.find((p) => p.id === id)
+    showañadirImgPais(pais)
+}
 async function editPais(id) {
   const pais = currentData.paises.find((p) => p.id === id)
   if (pais) {
