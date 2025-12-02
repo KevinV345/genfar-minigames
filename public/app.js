@@ -27,7 +27,7 @@ let metricsData = {
 const GAME_NAMES = {
   0: 'Genfy Pregunta',
   4: 'Genfy Encuentra',
-  1 : 'Misión Genfy',
+  1: 'Misión Genfy',
   3: 'La Rueda de Genfy'
 };
 
@@ -282,7 +282,7 @@ async function apiRequest(endpoint, method = "GET", body = null, isFormData = fa
 // --- DATA LOADING & RENDERING ---
 async function loadPaises() {
   currentData.paises = await apiRequest("/paises")
-  
+
   const tbody = document.querySelector("#paisesTable tbody")
   tbody.innerHTML = currentData.paises
     .map(
@@ -474,8 +474,8 @@ async function manageObjects(escenarioId, escenarioName) {
         <button class="btn btn-primary btn-small" onclick="showAddObjectForm(${escenarioId})">Agregar Objeto</button>
         <div class="objects-list">
           ${objetos
-            .map(
-              (obj) => `
+        .map(
+          (obj) => `
             <div class="object-item">
               <img src="${obj.imagen_objetivo}" style="max-width: 50px; max-height: 50px;">
               <button class="btn btn-warning btn-small" onclick="editObject(${obj.id})">Editar</button>
@@ -483,8 +483,8 @@ async function manageObjects(escenarioId, escenarioName) {
               <button class="btn btn-info btn-small" onclick="editObjectColliders(${obj.id}, ${escenarioId})">Colliders</button>
             </div>
           `,
-            )
-            .join("")}
+        )
+        .join("")}
         </div>
       </div>
     `
@@ -676,8 +676,8 @@ async function deleteObject(objectId, escenarioId) {
 
 async function loadSprites() {
   currentData.sprites = await apiRequest("/sprites")
-  
-  
+
+
   renderSpritesTable(currentData.sprites)
 }
 
@@ -758,7 +758,7 @@ function showTerapiaForm() {
           const option = document.createElement("option")
           option.value = b.id
           console.log(b);
-          
+
           option.textContent = `${b.nombre_terapia}`
           option.dataset.imagen = b.imagen_url
           option.dataset.paises = b.paises_nombres || ""
@@ -824,12 +824,12 @@ async function deleteTerapia(id) {
 function Asociar_terapia(id) {
   showTerapiasSection()
   showTerapiaForm()
-  document.getElementById("medicamentoSelect").value=id
+  document.getElementById("medicamentoSelect").value = id
   document.getElementById("medicamentoSelect").dispatchEvent(new Event('change'));
 }
 function renderSpritesTable(sprites) {
 
-  sprites=sprites.filter(e=>e.tipo!="bacteria")
+  sprites = sprites.filter(e => e.tipo != "bacteria")
 
   const tbody = document.querySelector("#spritesTable tbody")
   tbody.innerHTML = sprites
@@ -1129,7 +1129,7 @@ function showSpriteForm(sprite = null) {
 function showPaisForm(pais = null) {
   const isEdit = !!pais
   console.log(pais);
-  
+
   const title = isEdit ? "Editar País" : "Agregar País"
   // Asume que las imágenes se sirven desde /img/ y que pais.img contiene el nombre del archivo.
   const currentImageFilename = pais?.img || 'def.png';
@@ -1143,28 +1143,28 @@ function showPaisForm(pais = null) {
       </div>
       <div class="form-group">
         <label for="paisLegal1">Texto legal Genfy pregunta:</label>
-        <input type="text" id="paisLegal1" value="${isEdit ? pais.legal1 : ""}" required>
+        <input type="text" id="paisLegal1" value="${isEdit ? pais.legal1 : ""}">
       </div>
       <div class="form-group">
         <label for="paisLegal2">Texto legal Genfy encuentra:</label>
-        <input type="text" id="paisLegal2" value="${isEdit ? pais.legal2 : ""}" required>
+        <input type="text" id="paisLegal2" value="${isEdit ? pais.legal2 : ""}">
       </div>
       <div class="form-group">
         <label for="paisLegal3">Texto legal Mision Genfy:</label>
-        <input type="text" id="paisLegal3" value="${isEdit ? pais.legal3 : ""}" required>
+        <input type="text" id="paisLegal3" value="${isEdit ? pais.legal3 : ""}">
       </div>
       <div class="form-group">
         <label for="paisLegal4">Texto legal La rueda de Genfy:</label>
-        <input type="text" id="paisLegal4" value="${isEdit ? pais.legal4 : ""}" required>
+        <input type="text" id="paisLegal4" value="${isEdit ? pais.legal4 : ""}">
       </div>
       <div class="form-group">
         <label for="paisImagen">Imagen (bandera/ícono):</label>
         <input type="file" id="paisImagen" accept="image/*" ${!isEdit ? "" : ""}>
         <small>Selecciona una nueva imagen para subir. Deja vacío para mantener la actual.</small>
-        ${isEdit && currentImageFilename !== 'def.png' ? 
-          `<p class="current-image">Imagen actual: <img src="${currentImageUrl}" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;"></p>` : 
-          (isEdit ? `<small>Usando imagen por defecto: def.png</small>` : '')
-        }
+        ${isEdit && currentImageFilename !== 'def.png' ?
+      `<p class="current-image">Imagen actual: <img src="${currentImageUrl}" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;"></p>` :
+      (isEdit ? `<small>Usando imagen por defecto: def.png</small>` : '')
+    }
       </div>
 
       <div class="form-group">
@@ -1212,7 +1212,7 @@ function showPaisForm(pais = null) {
 
         // USAMOS TU apiRequest para el upload, pasando true para isFormData
         const uploadResult = await apiRequest("/upload", "POST", uploadData, true);
-        
+
         imageFilename = uploadResult.filename // Obtener el nuevo nombre de archivo
       }
 
@@ -1297,7 +1297,7 @@ function showañadirImgPais(pais) {
     const orden = document.getElementById("orden").value;
 
     if (fileInput.files.length === 0 || !legalNumero) return;
-    
+
 
     const file = fileInput.files[0];
     const uploadData = new FormData();
@@ -1319,7 +1319,7 @@ async function renderImagenesLegales(paisId) {
 
   const section = select.value;
   const pais = currentData.paises.find((p) => p.id == paisId)
-  const lista = pais.imagenes_legales["legal"+section];
+  const lista = pais.imagenes_legales["legal" + section];
 
   let html = "";
 
@@ -1329,8 +1329,8 @@ async function renderImagenesLegales(paisId) {
     html = `
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${lista
-          .map(
-            (img, i) => `
+        .map(
+          (img, i) => `
           <div style="border:1px solid #ccc;padding:10px;border-radius:6px;display:flex;align-items:center;gap:10px;">
             <img src="${img.url}" style="width:80px;height:auto;border-radius:4px;">
             <div>Orden: ${img.orden}</div>
@@ -1338,8 +1338,8 @@ async function renderImagenesLegales(paisId) {
               Eliminar
             </button>
           </div>`
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
     `;
   }
@@ -1358,9 +1358,9 @@ async function eliminarImagenLegal(paisId, section, url) {
   showañadirImgPais(currentData.paises.find((p) => p.id === paisId))
 }
 
-async function añadirImgPais(id) { 
-    const pais = currentData.paises.find((p) => p.id === id)
-    showañadirImgPais(pais)
+async function añadirImgPais(id) {
+  const pais = currentData.paises.find((p) => p.id === id)
+  showañadirImgPais(pais)
 }
 async function editPais(id) {
   const pais = currentData.paises.find((p) => p.id === id)
@@ -2074,10 +2074,10 @@ document.addEventListener("DOMContentLoaded", () => {
   })
 
   document.querySelectorAll(".submenu-toggle").forEach((toggle) => {
-    toggle.addEventListener("click", function(e) {
+    toggle.addEventListener("click", function (e) {
       e.preventDefault()
       e.stopPropagation()
-      
+
       const submenuId = this.dataset.submenu + "-submenu"
       const submenu = document.getElementById(submenuId)
       const arrow = this.querySelector(".submenu-arrow")
@@ -2189,7 +2189,7 @@ async function loadMetrics() {
       gamesUrl += `pais_id=${paisFilter}&`;
       summaryUrl += `pais_id=${paisFilter}&`;
     }
-    
+
     if (gameFilter) {
       gamesUrl += `game_id=${gameFilter}&`;
     }
@@ -2268,16 +2268,16 @@ function renderMetricsCharts() {
 function renderPaisesChart() {
   const canvas = document.getElementById('paisesChart');
   const ctx = canvas.getContext('2d');
-  
+
   // Clear previous chart
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
+
   // Set canvas size
   canvas.width = canvas.offsetWidth;
   canvas.height = 300;
 
   const topPaises = metricsData.summary.topPaises || [];
-  
+
   if (topPaises.length === 0) {
     ctx.font = '16px sans-serif';
     ctx.fillStyle = '#64748b';
@@ -2303,7 +2303,7 @@ function renderPaisesChart() {
     const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
     gradient.addColorStop(0, '#667eea');
     gradient.addColorStop(1, '#764ba2');
-    
+
     ctx.fillStyle = gradient;
     ctx.fillRect(x, y, barWidth, barHeight);
 
@@ -2338,16 +2338,16 @@ function renderPaisesChart() {
 function renderGamesChart() {
   const canvas = document.getElementById('gamesChart');
   const ctx = canvas.getContext('2d');
-  
+
   // Clear previous chart
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
+
   // Set canvas size
   canvas.width = canvas.offsetWidth;
   canvas.height = 300;
 
   const topGames = metricsData.summary.topGames || [];
-  
+
   if (topGames.length === 0) {
     ctx.font = '16px sans-serif';
     ctx.fillStyle = '#64748b';
@@ -2374,7 +2374,7 @@ function renderGamesChart() {
     const gradient = ctx.createLinearGradient(x, y, x + barWidth, y);
     gradient.addColorStop(0, '#667eea');
     gradient.addColorStop(1, '#764ba2');
-    
+
     ctx.fillStyle = gradient;
     ctx.fillRect(x, y, barWidth, barHeight);
 
@@ -2388,7 +2388,7 @@ function renderGamesChart() {
     ctx.fillStyle = '#64748b';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
-    
+
     ctx.fillText(GAME_NAMES[game.game_id] || game.game_id, x - 10, y + barHeight / 2 + 5);
   });
 
@@ -2411,17 +2411,17 @@ function formatDate(d) {
 function renderTimelineChart() {
   const canvas = document.getElementById('timelineChart');
   const ctx = canvas.getContext('2d');
-  
+
   // Clear previous chart
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
+
   // Set canvas size
   canvas.width = canvas.offsetWidth;
   canvas.height = 400;
 
   // Aggregate data by date
   const dateMap = new Map();
-  
+
   metricsData.paises.forEach(item => {
     const date = formatDate(item.fecha);
     if (!dateMap.has(date)) {
@@ -2481,18 +2481,18 @@ function renderTimelineChart() {
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    
+
     values.forEach((value, index) => {
       const x = padding + index * stepX;
       const y = padding + chartHeight - (value / maxValue) * chartHeight;
-      
+
       if (index === 0) {
         ctx.moveTo(x, y);
       } else {
         ctx.lineTo(x, y);
       }
     });
-    
+
     ctx.stroke();
 
     // Draw points
@@ -2500,7 +2500,7 @@ function renderTimelineChart() {
     values.forEach((value, index) => {
       const x = padding + index * stepX;
       const y = padding + chartHeight - (value / maxValue) * chartHeight;
-      
+
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
@@ -2563,14 +2563,14 @@ function initMetrics() {
       paisFilter.appendChild(option);
     });
   } else {
-      console.warn("currentData.paises is not yet loaded. Metrics filter might be empty.");
+    console.warn("currentData.paises is not yet loaded. Metrics filter might be empty.");
   }
 
   // Set default dates (last 30 days)
   const today = new Date();
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 30);
-  
+
   document.getElementById('metricsDateEnd').valueAsDate = today;
   document.getElementById('metricsDateStart').valueAsDate = thirtyDaysAgo;
 
@@ -2583,7 +2583,7 @@ function initMetrics() {
     loadMetrics();
     feather.replace();
   });
-  
+
   document.getElementById('clearMetricsFilters').addEventListener('click', () => {
     document.getElementById('metricsGameFilter').value = '';
     document.getElementById('metricsPaisFilter').value = '';
@@ -2620,11 +2620,11 @@ async function loadInitialData() {
     await loadUsuarios();
     await loadLogs();
   }
-  
+
   loadPaisesForFilters(); // Load filters based on loaded paises
-  
+
   // Initialize metrics after loading paises
-  initMetrics(); 
+  initMetrics();
 }
 
 // Corrected loadPaisesForFilters to ensure it's called appropriately
@@ -2728,26 +2728,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       const response = await fetch(`${API_BASE}/auth/verify`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
-      
+
       if (response.ok) {
-          const verifyData = await response.json();
-          if (verifyData.user) { // Ensure user data is valid
-            loginContainer.style.display = 'none';
-            appContainer.style.display = 'flex';
+        const verifyData = await response.json();
+        if (verifyData.user) { // Ensure user data is valid
+          loginContainer.style.display = 'none';
+          appContainer.style.display = 'flex';
 
-            if (currentUser.es_admin) {
-              document.body.classList.add('admin');
-            }
-
-            await loadInitialData();
-            feather.replace();
-          } else {
-            // Token valid but user data mismatch or invalid, clear session
-            throw new Error('Invalid user session data.');
+          if (currentUser.es_admin) {
+            document.body.classList.add('admin');
           }
+
+          await loadInitialData();
+          feather.replace();
+        } else {
+          // Token valid but user data mismatch or invalid, clear session
+          throw new Error('Invalid user session data.');
+        }
       } else {
-          // Token verification failed
-          throw new Error('Token verification failed.');
+        // Token verification failed
+        throw new Error('Token verification failed.');
       }
     } catch (error) {
       console.error('Session verification error:', error);
@@ -2778,22 +2778,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const tab = e.currentTarget.getAttribute('data-tab');
-      
+
       // Remove active class from all nav items and sections
       document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('active'));
       document.querySelectorAll('.section').forEach((section) => section.classList.remove('active'));
-      
+
       // Add active class to the clicked nav item and its corresponding section
       e.currentTarget.classList.add('active');
       const targetSection = document.getElementById(`${tab}Section`);
       if (targetSection) {
         targetSection.classList.add('active');
-        
+
         // Ensure specific initializations happen when a tab is activated
         if (tab === 'metricas') {
           // initMetrics is called within switchTabFn now, but ensuring it runs if metricas is the initial tab
           if (currentData.paises && currentData.paises.length > 0) {
-             setTimeout(() => initMetrics(), 100); // Small delay to allow rendering
+            setTimeout(() => initMetrics(), 100); // Small delay to allow rendering
           }
         }
       }
@@ -2823,7 +2823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const submenuId = toggle.getAttribute('data-submenu') + '-submenu';
       const submenu = document.getElementById(submenuId);
       const arrow = toggle.querySelector('.submenu-arrow');
-      
+
       if (submenu) {
         const isOpen = submenu.style.display === 'block';
         submenu.style.display = isOpen ? 'none' : 'block';
