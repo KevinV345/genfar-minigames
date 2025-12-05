@@ -2212,7 +2212,7 @@ async function loadMetrics() {
       apiRequest(gamesUrl),
       apiRequest(summaryUrl)
     ]);
-
+    console.log(paisesData)
     metricsData.paises = paisesData;
     metricsData.games = gamesData;
     metricsData.summary = summaryData;

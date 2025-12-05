@@ -52,25 +52,25 @@ app.use(express.static("public"))
 
 const auth =
   (adminOnly = false) =>
-  async (req, res, next) => {
-    const token = req.headers.authorization?.split(" ")[1]
-    if (!token) {
-      console.log("No token provided")
-      return res.status(401).json({ error: "Token requerido" })
-    }
-    try {
-      const user = jwt.verify(token, SECRET)
-      if (adminOnly && !user.es_admin) {
-        console.log("User is not admin:", user)
-        return res.status(403).json({ error: "Acceso denegado" })
+    async (req, res, next) => {
+      const token = req.headers.authorization?.split(" ")[1]
+      if (!token) {
+        console.log("No token provided")
+        return res.status(401).json({ error: "Token requerido" })
       }
-      req.user = user
-      next()
-    } catch (error) {
-      console.log("Token verification failed:", error.message)
-      res.status(403).json({ error: "Token inválido" })
+      try {
+        const user = jwt.verify(token, SECRET)
+        if (adminOnly && !user.es_admin) {
+          console.log("User is not admin:", user)
+          return res.status(403).json({ error: "Acceso denegado" })
+        }
+        req.user = user
+        next()
+      } catch (error) {
+        console.log("Token verification failed:", error.message)
+        res.status(403).json({ error: "Token inválido" })
+      }
     }
-  }
 
 const logChange = async (accion, detalle, usuario = null) => {
   try {
@@ -118,33 +118,66 @@ app.get("/api/auth/verify", auth(), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" })
   }
 })
+const IMG_DIR = path.join(__dirname, 'public', 'img');
+import crypto from 'crypto';
+import sharp from 'sharp';
 
-app.post("/api/upload", auth(), upload.single("image"), (req, res) => {
+app.post("/api/upload", auth(), upload.single("image"), async (req, res) => {
   try {
-    console.log("Upload request from user:", req.user.id)
-    console.log("File received:", req.file ? req.file.filename : "No file")
+    console.log("Upload request from user:", req.user.id);
+    console.log("File received:", req.file ? (req.file.originalname || req.file.filename) : "No file");
 
     if (!req.file) {
-      return res.status(400).json({ error: "No se recibió ningún archivo" })
+      return res.status(400).json({ error: "No se recibió ningún archivo" });
     }
 
-    const imageUrl = `/img/${req.file.filename}`
-    console.log("Image uploaded successfully:", imageUrl)
+    // Generar nombre único .png
+    const randomName = crypto.randomBytes(12).toString('hex');
+    const pngFilename = `${randomName}.png`;
+    const pngPath = path.join(IMG_DIR, pngFilename);
+
+    // Caso 1: multer memoryStorage -> req.file.buffer está presente
+    if (req.file.buffer) {
+      await sharp(req.file.buffer)
+        .png()
+        .toFile(pngPath);
+
+      // Caso 2: multer diskStorage -> req.file.path existente
+    } else if (req.file.path) {
+      // convertir desde el archivo en disco
+      await sharp(req.file.path)
+        .png()
+        .toFile(pngPath);
+
+      // opcional: eliminar el archivo original si tiene otra extensión
+      const origPath = req.file.path;
+      const origExt = path.extname(origPath).toLowerCase();
+      if (origExt !== '.png') {
+        fs.unlink(origPath, (err) => {
+          if (err) console.warn("No se pudo borrar archivo original:", err);
+        });
+      }
+    } else {
+      return res.status(400).json({ error: "Formato de archivo no soportado" });
+    }
+
+    const imageUrl = `/img/${pngFilename}`;
+    console.log("Image converted+uploaded successfully:", imageUrl);
 
     res.json({
       url: imageUrl,
-      filename: req.file.filename,
-    })
-  } catch (error) {
-    console.error("Upload error:", error)
-    res.status(500).json({ error: "Error al subir la imagen" })
-  }
-})
+      filename: pngFilename,
+    });
 
+  } catch (error) {
+    console.error("Upload/convert error:", error);
+    res.status(500).json({ error: "Error al subir y convertir la imagen" });
+  }
+});
 app.post("/api/metrics/pais", async (req, res) => {
   try {
 
-    
+
     const { pais_id } = req.body;
 
     await pool.query(
@@ -152,7 +185,7 @@ app.post("/api/metrics/pais", async (req, res) => {
       [pais_id]
     );
 
-    res.json({ ok: true});
+    res.json({ ok: true });
   } catch (e) {
     console.log(e);
     res.status(500).json({ ok: false, error: e.message });
@@ -161,13 +194,13 @@ app.post("/api/metrics/pais", async (req, res) => {
 
 app.post("/api/metrics/game", async (req, res) => {
   try {
-  const { game_id, pais_id } = req.body;
+    const { game_id, pais_id } = req.body;
     await pool.query(
       "INSERT INTO game_open (pais_id,game_id, fecha) VALUES (?,?, NOW())",
-      [pais_id,game_id]
+      [pais_id, game_id]
     );
 
-    res.json({ ok: true});
+    res.json({ ok: true });
   } catch (e) {
     console.log(e);
     res.status(500).json({ ok: false, error: e.message });
@@ -232,7 +265,7 @@ app.post("/api/usuarios", auth(true), async (req, res) => {
   console.log("--- INICIO CREACIÓN DE USUARIO ---")
   try {
     const { nombre, correo, contrasena, es_admin } = req.body
-    
+
     // Log 1: Mostrar los datos recibidos (EXCEPTO la contraseña)
     console.log("Datos recibidos:", { nombre, correo, es_admin, contrasena_existe: !!contrasena, longitud_contrasena: contrasena ? contrasena.length : 0 })
 
@@ -252,21 +285,21 @@ app.post("/api/usuarios", auth(true), async (req, res) => {
       "INSERT INTO usuarios (nombre, correo, contrasena_hash, es_admin) VALUES (?,?,?,?)",
       [nombre, correo, hash, es_admin ? 1 : 0],
     )
-    
+
     // Log 4: Éxito
     console.log("Usuario insertado con ID:", result.insertId)
-    
+
     const usuario = await getUserInfo(req.user.id)
     await logChange("agregó un nuevo usuario", `Usuario: ${nombre} (${correo}) - Sistema de administración`, usuario)
-    
+
     console.log("--- FIN CREACIÓN DE USUARIO (Éxito) ---")
     res.json({ mensaje: "Usuario creado", id: result.insertId })
-    
+
   } catch (error) {
     // Log 5: Capturar y mostrar el error específico
     console.error("Error en la creación del usuario:", error.message || error)
     console.error("Código de error (si existe):", error.code)
-    
+
     if (error.code === "ER_DUP_ENTRY") {
       res.status(400).json({ error: "El correo ya está registrado" })
     } else {
@@ -389,7 +422,7 @@ app.get("/api/paises", async (req, res) => {
         legal3: [],
         legal4: [],
       };
-      
+
       return {
         ...pais,
         imagenes_legales: imagenes_legales,
@@ -402,11 +435,11 @@ app.get("/api/paises", async (req, res) => {
     // 4. Asignar las imágenes a su país y legal_numero correspondiente
     imagenesRows.forEach(imagen => {
       const pais = paisesMap.get(imagen.pais_id);
-      
+
       if (pais) {
         // Mapear el 'legal_numero' entero (1, 2, 3, 4) a la clave de texto ('legal1', 'legal2', etc.)
         const legalKey = `legal${imagen.legal_numero}`;
-        
+
         // Verificar que la clave exista antes de agregar la imagen
         if (pais.imagenes_legales[legalKey]) {
           pais.imagenes_legales[legalKey].push({
@@ -441,7 +474,7 @@ app.post("/api/upload/imagen", auth(), upload.single("imagen"), async (req, res)
 
     // 2. Extracción de metadatos del req.body (gracias a Multer)
     const { pais_id, legal_numero, orden } = req.body;
-    
+
     // 3. Validación de metadatos
     if (!pais_id || !legal_numero || !orden) {
       // Si faltan metadatos, se puede considerar eliminar el archivo subido
@@ -454,12 +487,12 @@ app.post("/api/upload/imagen", auth(), upload.single("imagen"), async (req, res)
 
     // 4. Preparación de datos para la DB
     const imagen_url = `/img/${req.file.filename}`;
-    
+
     const dbData = {
-        pais_id: parseInt(pais_id), 
-        legal_numero: parseInt(legal_numero),
-        imagen_url: imagen_url, 
-        orden: parseInt(orden)
+      pais_id: parseInt(pais_id),
+      legal_numero: parseInt(legal_numero),
+      imagen_url: imagen_url,
+      orden: parseInt(orden)
     };
 
     // 5. EJECUCIÓN DEL SQL PURO (Guardado en paises_legal_imagenes)
@@ -470,22 +503,22 @@ app.post("/api/upload/imagen", auth(), upload.single("imagen"), async (req, res)
         (?, ?, ?, ?)
     `;
     const params = [
-        dbData.pais_id, 
-        dbData.legal_numero, 
-        dbData.imagen_url, 
-        dbData.orden
+      dbData.pais_id,
+      dbData.legal_numero,
+      dbData.imagen_url,
+      dbData.orden
     ];
 
     // Asumiendo que 'dbQuery' es tu función para ejecutar SQL
-    const dbResult = await pool.query(sql, params); 
+    const dbResult = await pool.query(sql, params);
     // 6. Respuesta de éxito
-    res.status(201).json({ 
-      message: "Imagen subida y metadatos guardados con éxito", 
+    res.status(201).json({
+      message: "Imagen subida y metadatos guardados con éxito",
       filename: req.file.filename,
       url: imagen_url,
       insertId: dbResult.insertId // El ID del nuevo registro en la tabla
     });
-    
+
   } catch (error) {
     // Manejo de errores de Multer o de la Base de Datos
     console.error("Error al procesar subida y metadatos:", error);
@@ -532,7 +565,7 @@ app.post("/api/paises", auth(true), async (req, res) => {
       INSERT INTO paises (nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible) 
       VALUES (?,?,?,?,?, ?, ?, ?, ?, ?)
     `,
-      [nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
+      [nombre, legal1, legal2, legal3, legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible],
     )
 
     const usuario = await getUserInfo(req.user.id)
@@ -548,7 +581,7 @@ app.post("/api/paises", auth(true), async (req, res) => {
 app.put("/api/paises/:id", auth(true), async (req, res) => {
   try {
     // Incluido 'img' en la desestructuración de req.body
-    const { nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
+    const { nombre, legal1, legal2, legal3, legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible } = req.body
 
     // 'img' ahora se incluye en la lista de campos a actualizar
     await pool.query(
@@ -566,7 +599,7 @@ app.put("/api/paises/:id", auth(true), async (req, res) => {
         ruleta_visible=? 
       WHERE id=?
     `,
-      [nombre,legal1,legal2,legal3,legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
+      [nombre, legal1, legal2, legal3, legal4, img, genfy_pregunta_visible, genfy_encuentra_visible, mision_genfy_visible, ruleta_visible, req.params.id],
     )
 
     const usuario = await getUserInfo(req.user.id)
@@ -773,8 +806,8 @@ app.get("/api/objetos/:id", async (req, res) => {
       ...objeto[0],
       enlace: objeto[0].enlace
         ? (/^https?:\/\//i.test(objeto[0].enlace)
-            ? objeto[0].enlace
-            : `http://${objeto[0].enlace}`)
+          ? objeto[0].enlace
+          : `http://${objeto[0].enlace}`)
         : null,
     }
 
@@ -1120,30 +1153,30 @@ app.put("/api/escenarios/:id", auth(true), upload.single("imagen"), async (req, 
   }
 })
 app.post("/api/escenarios/:id/objetos", auth(true), upload.single("imagen_objetivo"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No se recibió ningún archivo de imagen" })
-    }
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se recibió ningún archivo de imagen" })
+    }
 
-    const { Url } = req.body
-    const escenarioId = req.params.id
-    const imagen_url = `/img/${req.file.filename}`
+    const { Url } = req.body
+    const escenarioId = req.params.id
+    const imagen_url = `/img/${req.file.filename}`
 
-    // CORRECCIÓN: El número de '?' debe coincidir con el número de valores.
-    await pool.query("INSERT INTO genfy_encuentra_objetos (escenario_id, imagen_objetivo, enlace) VALUES (?, ?, ?)", [
-      escenarioId,
-      imagen_url,
-      Url
-    ])
+    // CORRECCIÓN: El número de '?' debe coincidir con el número de valores.
+    await pool.query("INSERT INTO genfy_encuentra_objetos (escenario_id, imagen_objetivo, enlace) VALUES (?, ?, ?)", [
+      escenarioId,
+      imagen_url,
+      Url
+    ])
 
-    const usuario = await getUserInfo(req.user.id)
-    await logChange("agregó un nuevo objeto", `Objeto agregado al escenario ${escenarioId}`, usuario)
+    const usuario = await getUserInfo(req.user.id)
+    await logChange("agregó un nuevo objeto", `Objeto agregado al escenario ${escenarioId}`, usuario)
 
-    res.status(201).json({ mensaje: "Objeto agregado exitosamente" })
-  } catch (error) {
-    console.error("Error al agregar objeto:", error)
-    res.status(500).json({ error: "Error del servidor al agregar el objeto" })
-  }
+    res.status(201).json({ mensaje: "Objeto agregado exitosamente" })
+  } catch (error) {
+    console.error("Error al agregar objeto:", error)
+    res.status(500).json({ error: "Error del servidor al agregar el objeto" })
+  }
 })
 
 app.get("/api/escenariosUnity/:paisId", async (req, res) => {
@@ -1183,9 +1216,9 @@ app.get("/api/escenariosUnity/:paisId", async (req, res) => {
           ...obj,
           colliders: obj.colliders
             ? obj.colliders.split(";").map((point) => {
-                const [x, y] = point.split(",")
-                return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
-              })
+              const [x, y] = point.split(",")
+              return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
+            })
             : [],
         }))
 
@@ -1261,7 +1294,7 @@ app.get("/api/ruletaUnity/:paisId", async (req, res) => {
 app.get("/api/terapias", async (req, res) => {
   try {
     const [terapias] = await pool.query(
-  `SELECT
+      `SELECT
       t.id,
       t.medicamento_id,
       t.bacteria_id,
@@ -1275,7 +1308,7 @@ app.get("/api/terapias", async (req, res) => {
    LEFT JOIN paises AS p ON msp.pais_id = p.id
    GROUP BY t.id
    ORDER BY t.id`
-);
+    );
     res.json(terapias);
   } catch (error) {
     console.error("Error al obtener terapias:", error);
@@ -1418,9 +1451,9 @@ app.get("/api/escenarios/:id/objetos", async (req, res) => {
       ...obj,
       colliders: obj.colliders
         ? obj.colliders.split(";").map((point) => {
-            const [x, y] = point.split(",")
-            return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
-          })
+          const [x, y] = point.split(",")
+          return { x: Number.parseFloat(x), y: Number.parseFloat(y) }
+        })
         : [],
     }))
 
@@ -1518,37 +1551,37 @@ app.get("/api/logs", auth(true), async (req, res) => {
 app.get("/api/metrics/paises", auth(), async (req, res) => {
   try {
     const { pais_id, fecha_inicio, fecha_fin } = req.query;
-    
+
     let query = `
       SELECT 
         po.pais_id,
         p.nombre as pais_nombre,
-        DATE(po.fecha) as fecha,
+        DATE_FORMAT(po.fecha, '%Y-%m-%d') AS fecha,
         COUNT(*) as total
       FROM paises_open po
       LEFT JOIN paises p ON po.pais_id = p.id
       WHERE 1=1
     `;
-    
+
     const params = [];
-    
+
     if (pais_id) {
       query += ' AND po.pais_id = ?';
       params.push(pais_id);
     }
-    
+
     if (fecha_inicio) {
       query += ' AND po.fecha >= ?';
       params.push(fecha_inicio);
     }
-    
+
     if (fecha_fin) {
       query += ' AND po.fecha <= ?';
       params.push(fecha_fin + ' 23:59:59');
     }
-    
+
     query += ' GROUP BY po.pais_id, DATE(po.fecha) ORDER BY fecha DESC, total DESC';
-    
+
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
@@ -1560,43 +1593,43 @@ app.get("/api/metrics/paises", auth(), async (req, res) => {
 app.get("/api/metrics/games", auth(), async (req, res) => {
   try {
     const { game_id, pais_id, fecha_inicio, fecha_fin } = req.query;
-    
+
     let query = `
       SELECT 
         go.game_id,
         go.pais_id,
         p.nombre as pais_nombre,
-        DATE(go.fecha) as fecha,
+        DATE_FORMAT(go.fecha, '%Y-%m-%d') AS fecha,
         COUNT(*) as total
       FROM game_open go
       LEFT JOIN paises p ON go.pais_id = p.id
       WHERE 1=1
     `;
-    
+
     const params = [];
-    
+
     if (game_id) {
       query += ' AND go.game_id = ?';
       params.push(game_id);
     }
-    
+
     if (pais_id) {
       query += ' AND go.pais_id = ?';
       params.push(pais_id);
     }
-    
+
     if (fecha_inicio) {
       query += ' AND go.fecha >= ?';
       params.push(fecha_inicio);
     }
-    
+
     if (fecha_fin) {
       query += ' AND go.fecha <= ?';
       params.push(fecha_fin + ' 23:59:59');
     }
-    
+
     query += ' GROUP BY go.game_id, go.pais_id, DATE(go.fecha) ORDER BY fecha DESC, total DESC';
-    
+
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
@@ -1608,38 +1641,38 @@ app.get("/api/metrics/games", auth(), async (req, res) => {
 app.get("/api/metrics/summary", auth(), async (req, res) => {
   try {
     const { pais_id, fecha_inicio, fecha_fin } = req.query;
-    
+
     let paisCondition = '';
     let dateCondition = '';
     const params = [];
-    
+
     if (pais_id) {
       paisCondition = ' AND pais_id = ?';
       params.push(pais_id);
     }
-    
+
     if (fecha_inicio) {
       dateCondition += ' AND fecha >= ?';
       params.push(fecha_inicio);
     }
-    
+
     if (fecha_fin) {
       dateCondition += ' AND fecha <= ?';
       params.push(fecha_fin + ' 23:59:59');
     }
-    
+
     // Total de países abiertos
     const [paisesTotal] = await pool.query(
       `SELECT COUNT(*) as total FROM paises_open WHERE 1=1 ${paisCondition} ${dateCondition}`,
       params
     );
-    
+
     // Total de juegos abiertos
     const [gamesTotal] = await pool.query(
       `SELECT COUNT(*) as total FROM game_open WHERE 1=1 ${paisCondition} ${dateCondition}`,
       params
     );
-    
+
     // Top 5 países más abiertos
     const [topPaises] = await pool.query(
       `SELECT p.nombre, COUNT(*) as total 
@@ -1651,7 +1684,7 @@ app.get("/api/metrics/summary", auth(), async (req, res) => {
        LIMIT 5`,
       params
     );
-    
+
     // Top 5 juegos más abiertos
     const [topGames] = await pool.query(
       `SELECT game_id, COUNT(*) as total 
@@ -1662,7 +1695,7 @@ app.get("/api/metrics/summary", auth(), async (req, res) => {
        LIMIT 5`,
       params
     );
-    
+
     res.json({
       paisesTotal: paisesTotal[0].total,
       gamesTotal: gamesTotal[0].total,
