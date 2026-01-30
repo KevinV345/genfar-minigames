@@ -927,7 +927,7 @@ function filterSprites() {
 function filterRuletaPreguntasByPais() {
   const paisId = document.getElementById("paisFilterRuleta").value
   const temaId = document.getElementById("temaFilterRuleta").value
-
+  console.log(paisId, " ", temaId)
   let filtered = currentData.ruletaPreguntas
 
   if (paisId) {
