@@ -1555,9 +1555,9 @@ app.get("/api/metrics/paises", auth(), async (req, res) => {
     let query = `
       SELECT 
         po.pais_id,
-        p.nombre as pais_nombre,
-        DATE_FORMAT(po.fecha, '%Y-%m-%d') AS fecha,
-        COUNT(*) as total
+        p.nombre AS pais_nombre,
+        DATE(po.fecha) AS fecha,
+        COUNT(*) AS total
       FROM paises_open po
       LEFT JOIN paises p ON po.pais_id = p.id
       WHERE 1=1
@@ -1580,7 +1580,13 @@ app.get("/api/metrics/paises", auth(), async (req, res) => {
       params.push(fecha_fin + ' 23:59:59');
     }
 
-    query += ' GROUP BY po.pais_id, DATE(po.fecha) ORDER BY fecha DESC, total DESC';
+    query += `
+      GROUP BY 
+        po.pais_id,
+        p.nombre,
+        DATE(po.fecha)
+      ORDER BY fecha DESC, total DESC
+    `;
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
@@ -1589,7 +1595,6 @@ app.get("/api/metrics/paises", auth(), async (req, res) => {
     res.status(500).json({ error: "Error del servidor", d: error });
   }
 });
-
 app.get("/api/metrics/games", auth(), async (req, res) => {
   try {
     const { game_id, pais_id, fecha_inicio, fecha_fin } = req.query;
@@ -1598,9 +1603,9 @@ app.get("/api/metrics/games", auth(), async (req, res) => {
       SELECT 
         go.game_id,
         go.pais_id,
-        p.nombre as pais_nombre,
-        DATE_FORMAT(go.fecha, '%Y-%m-%d') AS fecha,
-        COUNT(*) as total
+        p.nombre AS pais_nombre,
+        DATE(go.fecha) AS fecha,
+        COUNT(*) AS total
       FROM game_open go
       LEFT JOIN paises p ON go.pais_id = p.id
       WHERE 1=1
@@ -1628,7 +1633,14 @@ app.get("/api/metrics/games", auth(), async (req, res) => {
       params.push(fecha_fin + ' 23:59:59');
     }
 
-    query += ' GROUP BY go.game_id, go.pais_id, DATE(go.fecha) ORDER BY fecha DESC, total DESC';
+    query += `
+      GROUP BY 
+        go.game_id,
+        go.pais_id,
+        p.nombre,
+        DATE(go.fecha)
+      ORDER BY fecha DESC, total DESC
+    `;
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
@@ -1637,6 +1649,7 @@ app.get("/api/metrics/games", auth(), async (req, res) => {
     res.status(500).json({ error: "Error del servidor" });
   }
 });
+
 
 app.get("/api/metrics/summary", auth(), async (req, res) => {
   try {
