@@ -1586,7 +1586,7 @@ app.get("/api/metrics/paises", auth(), async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener métricas de países:", error);
-    res.status(500).json({ error: "Error del servidor" });
+    res.status(500).json({ error: "Error del servidor", d: error });
   }
 });
 
