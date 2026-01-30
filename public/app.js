@@ -267,6 +267,7 @@ async function apiRequest(endpoint, method = "GET", body = null, isFormData = fa
     if (!response.ok) {
       console.log("[v0] Response not OK:", response.status, response.statusText)
       const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+      console.log(error.d)
       throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
     }
 
